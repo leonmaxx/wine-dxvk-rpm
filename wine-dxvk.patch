@@ -1,0 +1,2196 @@
+From 39d92b868974b7a22ba3787a48d6c0bbe1ed57c2 Mon Sep 17 00:00:00 2001
+From: Derek Lesho <dereklesho52@Gmail.com>
+Date: Sun, 17 Feb 2019 18:35:53 -0500
+Subject: [PATCH 01/10] almost done
+
+---
+ configure                  | 104 ++++
+ configure.ac               |  11 +
+ dlls/d3d11/Makefile.in     |   4 +-
+ dlls/d3d11/d3d11_main.c    |  52 ++
+ dlls/d3d11/d3d11_private.h |   8 +
+ dlls/d3d11/dxvk.c          | 998 +++++++++++++++++++++++++++++++++++++
+ include/config.h.in        |   3 +
+ include/wine/winedxgi.idl  |  48 ++
+ 8 files changed, 1227 insertions(+), 1 deletion(-)
+ create mode 100644 dlls/d3d11/dxvk.c
+
+diff --git a/configure b/configure
+index ec211a538b1..992adc19af6 100755
+--- a/configure
++++ b/configure
+@@ -635,6 +635,8 @@ UNWINDFLAGS
+ EXCESS_PRECISION_CFLAGS
+ BUILTINFLAG
+ EXTRACFLAGS
++DXVK_LIBS
++DXVK_CFLAGS
+ VKD3D_LIBS
+ VKD3D_CFLAGS
+ NETAPI_LIBS
+@@ -867,6 +869,7 @@ with_sdl
+ with_tiff
+ with_udev
+ with_v4l
++with_dxvk
+ with_vkd3d
+ with_vulkan
+ with_xcomposite
+@@ -1838,6 +1841,8 @@ NETAPI_CFLAGS
+ NETAPI_LIBS
+ VKD3D_CFLAGS
+ VKD3D_LIBS
++DXVK_CFLAGS
++DXVK_LIBS
+ LDAP_CFLAGS
+ LDAP_LIBS'
+ 
+@@ -2517,6 +2522,7 @@ Optional Packages:
+   --without-tiff          do not use TIFF
+   --without-udev          do not use udev (plug and play support)
+   --without-v4l           do not use v4l1 (v4l support)
++  --without-dxvk          do not use dxvk (d3d-over-vulkan support)
+   --without-vkd3d         do not use vkd3d (Direct3D 12 support)
+   --without-vulkan        do not use Vulkan
+   --without-xcomposite    do not use the Xcomposite extension
+@@ -2622,6 +2628,8 @@ Some influential environment variables:
+   VKD3D_CFLAGS
+               C compiler flags for libvkd3d, overriding pkg-config
+   VKD3D_LIBS  Linker flags for libvkd3d, overriding pkg-config
++  DXVK_CFLAGS C compiler flags for libdxvk, overriding pkg-config
++  DXVK_LIBS   Linker flags for libdxvk, overriding pkg-config
+   LDAP_CFLAGS C compiler flags for openldap, overriding pkg-config
+   LDAP_LIBS   Linker flags for openldap, overriding pkg-config
+ 
+@@ -4011,6 +4019,12 @@ if test "${with_v4l+set}" = set; then :
+ fi
+ 
+ 
++# Check whether --with-dxvk was given.
++if test "${with_dxvk+set}" = set; then :
++  withval=$with_dxvk;
++fi
++
++
+ # Check whether --with-vkd3d was given.
+ if test "${with_vkd3d+set}" = set; then :
+   withval=$with_vkd3d;
+@@ -15569,6 +15583,94 @@ esac
+ fi
+ test "x$ac_cv_lib_soname_vkd3d" != "x" || enable_d3d12=${enable_d3d12:-no}
+ 
++if test "x$with_dxvk" != "xno"
++then
++    if ${DXVK_CFLAGS:+false} :; then :
++  if ${PKG_CONFIG+:} false; then :
++  DXVK_CFLAGS=`$PKG_CONFIG --cflags libdxvk 2>/dev/null`
++fi
++fi
++
++if ${DXVK_LIBS:+false} :; then :
++  if ${PKG_CONFIG+:} false; then :
++  DXVK_LIBS=`$PKG_CONFIG --libs libdxvk 2>/dev/null`
++fi
++fi
++
++
++$as_echo "$as_me:${as_lineno-$LINENO}: libdxvk cflags: $DXVK_CFLAGS" >&5
++$as_echo "$as_me:${as_lineno-$LINENO}: libdxvk libs: $DXVK_LIBS" >&5
++ac_save_CPPFLAGS=$CPPFLAGS
++CPPFLAGS="$CPPFLAGS $DXVK_CFLAGS"
++{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for -ldxvk" >&5
++$as_echo_n "checking for -ldxvk... " >&6; }
++if ${ac_cv_lib_soname_dxvk+:} false; then :
++  $as_echo_n "(cached) " >&6
++else
++  ac_check_soname_save_LIBS=$LIBS
++LIBS="-ldxvk $DXVK_LIBS $LIBS"
++  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++/* Override any GCC internal prototype to avoid an error.
++   Use char because int might match the return type of a GCC
++   builtin and then its argument prototype would still apply.  */
++#ifdef __cplusplus
++extern "C"
++#endif
++char dxvk_native_create_d3d11_device ();
++int
++main ()
++{
++return dxvk_native_create_d3d11_device ();
++  ;
++  return 0;
++}
++_ACEOF
++if ac_fn_c_try_link "$LINENO"; then :
++  case "$LIBEXT" in
++    dll) ac_cv_lib_soname_dxvk=`$ac_cv_path_LDD conftest.exe | grep "dxvk" | sed -e "s/dll.*/dll/"';2,$d'` ;;
++    dylib) ac_cv_lib_soname_dxvk=`$OTOOL -L conftest$ac_exeext | grep "libdxvk\\.[0-9A-Za-z.]*dylib" | sed -e "s/^.*\/\(libdxvk\.[0-9A-Za-z.]*dylib\).*$/\1/"';2,$d'` ;;
++    *) ac_cv_lib_soname_dxvk=`$READELF -d conftest$ac_exeext | grep "NEEDED.*libdxvk\\.$LIBEXT" | sed -e "s/^.*\\[\\(libdxvk\\.$LIBEXT[^	 ]*\\)\\].*$/\1/"';2,$d'`
++       if ${ac_cv_lib_soname_dxvk:+false} :; then :
++  ac_cv_lib_soname_dxvk=`$LDD conftest$ac_exeext | grep "libdxvk\\.$LIBEXT" | sed -e "s/^.*\(libdxvk\.$LIBEXT[^	 ]*\).*$/\1/"';2,$d'`
++fi ;;
++  esac
++fi
++rm -f core conftest.err conftest.$ac_objext \
++    conftest$ac_exeext conftest.$ac_ext
++  LIBS=$ac_check_soname_save_LIBS
++fi
++if ${ac_cv_lib_soname_dxvk:+false} :; then :
++  { $as_echo "$as_me:${as_lineno-$LINENO}: result: not found" >&5
++$as_echo "not found" >&6; }
++
++else
++  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_soname_dxvk" >&5
++$as_echo "$ac_cv_lib_soname_dxvk" >&6; }
++
++cat >>confdefs.h <<_ACEOF
++#define SONAME_LIBDXVK "$ac_cv_lib_soname_dxvk"
++_ACEOF
++
++
++fi
++CPPFLAGS=$ac_save_CPPFLAGS
++test -z "$DXVK_CFLAGS" || DXVK_CFLAGS=`echo " $DXVK_CFLAGS" | sed 's/ -I\([^/]\)/ -I\$(top_builddir)\/\1/g'`
++test -z "$DXVK_LIBS" || DXVK_LIBS=`echo " $DXVK_LIBS" | sed 's/ -L\([^/]\)/ -L\$(top_builddir)\/\1/g'`
++
++fi
++if test "x$ac_cv_lib_soname_dxvk" = "x"; then :
++  case "x$with_dxvk" in
++  x)   as_fn_append wine_notices "|dxvk ${notice_platform}development files not found, DXVK won't be supported." ;;
++  xno) ;;
++  *)   as_fn_error $? "dxvk ${notice_platform}development files not found, DXVK won't be supported.
++This is an error since --with-dxvk was requested." "$LINENO" 5 ;;
++esac
++
++fi
++test "x$ac_cv_lib_soname_dxvk" != "x" || enable_dxvk=${enable_dxvk:-no}
++
+ 
+ EXTRACFLAGS=""
+ 
+@@ -19076,6 +19178,8 @@ NETAPI_CFLAGS = $NETAPI_CFLAGS
+ NETAPI_LIBS = $NETAPI_LIBS
+ VKD3D_CFLAGS = $VKD3D_CFLAGS
+ VKD3D_LIBS = $VKD3D_LIBS
++DXVK_CFLAGS = $DXVK_CFLAGS
++DXVK_LIBS = $DXVK_LIBS
+ EXCESS_PRECISION_CFLAGS = $EXCESS_PRECISION_CFLAGS
+ DL_LIBS = $DL_LIBS
+ POLL_LIBS = $POLL_LIBS
+diff --git a/configure.ac b/configure.ac
+index 1b425d22a26..00f8229cd7d 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -81,6 +81,7 @@ AC_ARG_WITH(sdl,       AS_HELP_STRING([--without-sdl],[do not use SDL]))
+ AC_ARG_WITH(tiff,      AS_HELP_STRING([--without-tiff],[do not use TIFF]))
+ AC_ARG_WITH(udev,      AS_HELP_STRING([--without-udev],[do not use udev (plug and play support)]))
+ AC_ARG_WITH(v4l,       AS_HELP_STRING([--without-v4l],[do not use v4l1 (v4l support)]))
++AC_ARG_WITH(dxvk,      AS_HELP_STRING([--without-dxvk],[do not use dxvk (d3d-over-vulkan support)]))
+ AC_ARG_WITH(vkd3d,     AS_HELP_STRING([--without-vkd3d],[do not use vkd3d (Direct3D 12 support)]))
+ AC_ARG_WITH(vulkan,    AS_HELP_STRING([--without-vulkan],[do not use Vulkan]))
+ AC_ARG_WITH(xcomposite,AS_HELP_STRING([--without-xcomposite],[do not use the Xcomposite extension]),
+@@ -1891,6 +1892,16 @@ WINE_NOTICE_WITH(vkd3d,[test "x$ac_cv_lib_soname_vkd3d" = "x"],
+                  [vkd3d ${notice_platform}development files not found, Direct3D 12 won't be supported.])
+ test "x$ac_cv_lib_soname_vkd3d" != "x" || enable_d3d12=${enable_d3d12:-no}
+ 
++dnl **** Check for dxvk ****
++if test "x$with_dxvk" != "xno"
++then
++    WINE_PACKAGE_FLAGS(DXVK,[libdxvk],,,,
++        [WINE_CHECK_SONAME(dxvk,dxvk_native_create_d3d11_device,,,[$DXVK_LIBS])])
++fi
++WINE_NOTICE_WITH(dxvk,[test "x$ac_cv_lib_soname_dxvk" = "x"],
++                 [dxvk ${notice_platform}development files not found, DXVK won't be supported.])
++test "x$ac_cv_lib_soname_dxvk" != "x" || enable_dxvk=${enable_dxvk:-no}
++
+ dnl **** Check for gcc specific options ****
+ 
+ AC_SUBST(EXTRACFLAGS,"")
+diff --git a/dlls/d3d11/Makefile.in b/dlls/d3d11/Makefile.in
+index 5a56faec523..d7bd7d420c2 100644
+--- a/dlls/d3d11/Makefile.in
++++ b/dlls/d3d11/Makefile.in
+@@ -1,12 +1,14 @@
+ MODULE    = d3d11.dll
+ IMPORTLIB = d3d11
+-IMPORTS   = dxguid uuid dxgi wined3d
++IMPORTS   = advapi32 user32 dxguid uuid dxgi wined3d
++EXTRAINCL = $(DXVK_CFLAGS)
+ 
+ C_SRCS = \
+ 	async.c \
+ 	buffer.c \
+ 	d3d11_main.c \
+ 	device.c \
++	dxvk.c \
+ 	inputlayout.c \
+ 	shader.c \
+ 	state.c \
+diff --git a/dlls/d3d11/d3d11_main.c b/dlls/d3d11/d3d11_main.c
+index 9c89820f6f5..e29b45e312a 100644
+--- a/dlls/d3d11/d3d11_main.c
++++ b/dlls/d3d11/d3d11_main.c
+@@ -136,10 +136,62 @@ HRESULT WINAPI D3D11CoreCreateDevice(IDXGIFactory *factory, IDXGIAdapter *adapte
+     return S_OK;
+ }
+ 
++static int get_dxvk_enable_option(void)
++{
++    HKEY defkey;
++    HKEY appkey;
++    DWORD type, data, size;
++    char buffer[MAX_PATH+10];
++    DWORD len;
++    int result = 1;
++
++    /* @@ Wine registry key: HKCU\Software\Wine\Direct3D */
++    if ( RegOpenKeyA( HKEY_CURRENT_USER, "Software\\Wine\\Direct3D", &defkey ) ) defkey = 0;
++
++    len = GetModuleFileNameA( 0, buffer, MAX_PATH );
++    if (len && len < MAX_PATH)
++    {
++        HKEY tmpkey;
++        /* @@ Wine registry key: HKCU\Software\Wine\AppDefaults\app.exe\Direct3D */
++        if (!RegOpenKeyA( HKEY_CURRENT_USER, "Software\\Wine\\AppDefaults", &tmpkey ))
++        {
++            char *p, *appname = buffer;
++            if ((p = strrchr( appname, '/' ))) appname = p + 1;
++            if ((p = strrchr( appname, '\\' ))) appname = p + 1;
++            strcat( appname, "\\Direct3D" );
++            TRACE("appname = [%s]\n", appname);
++            if (RegOpenKeyA( tmpkey, appname, &appkey )) appkey = 0;
++            RegCloseKey( tmpkey );
++        }
++    }
++
++    size = sizeof(data);
++
++    size = sizeof(data);
++    if (appkey && !RegQueryValueExA(appkey, "dxvk", 0, &type, (BYTE *)&data, &size) && type == REG_DWORD && data) goto yes;
++    size = sizeof(data);
++    if (defkey && !RegQueryValueExA(defkey, "dxvk", 0, &type, (BYTE *)&data, &size) && type == REG_DWORD && data) goto yes;
++
++    result = 0;
++
++    yes:
++
++    RegCloseKey(appkey);
++    RegCloseKey(defkey);
++
++    return result;
++}
++
+ HRESULT WINAPI D3D11CreateDevice(IDXGIAdapter *adapter, D3D_DRIVER_TYPE driver_type, HMODULE swrast, UINT flags,
+         const D3D_FEATURE_LEVEL *feature_levels, UINT levels, UINT sdk_version, ID3D11Device **device_out,
+         D3D_FEATURE_LEVEL *obtained_feature_level, ID3D11DeviceContext **immediate_context)
+ {
++    if(is_dxvk_supported() && get_dxvk_enable_option())
++    {
++        return create_d3d_device_dxvk(adapter, driver_type, swrast, flags, feature_levels, levels, sdk_version, 
++                                        device_out, obtained_feature_level, immediate_context);
++    }
++
+     static const D3D_FEATURE_LEVEL default_feature_levels[] =
+     {
+         D3D_FEATURE_LEVEL_11_0,
+diff --git a/dlls/d3d11/d3d11_private.h b/dlls/d3d11/d3d11_private.h
+index 580f520aae9..35c23782ba6 100644
+--- a/dlls/d3d11/d3d11_private.h
++++ b/dlls/d3d11/d3d11_private.h
+@@ -601,4 +601,12 @@ HRESULT WINAPI DXGID3D10CreateDevice(HMODULE d3d10core, IDXGIFactory *factory, I
+         unsigned int flags, const D3D_FEATURE_LEVEL *feature_levels, unsigned int level_count, void **device);
+ HRESULT WINAPI DXGID3D10RegisterLayers(const struct dxgi_device_layer *layers, UINT layer_count);
+ 
++/* dxvk */
++
++int is_dxvk_supported(void);
++
++HRESULT create_d3d_device_dxvk(IDXGIAdapter *adapter, D3D_DRIVER_TYPE driver_type, HMODULE swrast, UINT flags,
++        const D3D_FEATURE_LEVEL *feature_levels, UINT levels, UINT sdk_version, ID3D11Device **device_out,
++        D3D_FEATURE_LEVEL *obtained_feature_level, ID3D11DeviceContext **immediate_context);
++
+ #endif /* __WINE_D3D11_PRIVATE_H */
+diff --git a/dlls/d3d11/dxvk.c b/dlls/d3d11/dxvk.c
+new file mode 100644
+index 00000000000..0ed53e7db30
+--- /dev/null
++++ b/dlls/d3d11/dxvk.c
+@@ -0,0 +1,998 @@
++#include "config.h"
++#include "wine/port.h"
++
++#include "d3d11_private.h"
++
++#include "wine/vulkan.h"
++#include "wine/vulkan_driver.h"
++
++#ifdef SONAME_LIBDXVK
++    #define DXVK_NO_WINDOWS_H
++    #define DXVK_NO_VULKAN_H
++    #define DXVK_NO_INTERFACE_H
++    #include <dxvk.h>
++    #include "wine/library.h"
++#endif
++
++WINE_DEFAULT_DEBUG_CHANNEL(d3d11);
++
++#ifdef SONAME_LIBDXVK
++static void* dxvk_lib;
++
++static PFN_dxvk_native_create_d3d11_device pfn_dxvk_native_create_d3d11_device;
++
++int is_dxvk_supported(void)
++{
++    if ( !(dxvk_lib = wine_dlopen("dxvk", RTLD_LAZY | RTLD_NOLOAD, NULL, 0)) )
++    {
++        if( !(dxvk_lib = wine_dlopen("dxvk", RTLD_LAZY | RTLD_LOCAL, NULL, 0)) )
++        {
++            ERR("DXVK could not be found\n");
++            return 0;
++        } else {
++            pfn_dxvk_native_create_d3d11_device = wine_dlsym(dxvk_lib, "dxvk_native_create_d3d11_device", NULL, 0);
++        }
++    }
++    
++    return 1;
++}
++
++struct dxvk_thread_data
++{
++    PFN_dxvk_thread_proc proc;
++    void *data;
++};
++
++static DWORD WINAPI dxvk_thread_main(void *data)
++{
++    struct dxvk_thread_data *thread_data = data;
++
++    thread_data->proc(thread_data->data);
++    heap_free(thread_data);
++
++    return 0;
++}
++
++static void* dxvk_create_thread(PFN_dxvk_thread_proc proc, void *data)
++{
++    struct dxvk_thread_data *thread_data;
++    HANDLE thread;
++
++    if (!(thread_data = heap_alloc(sizeof(*thread_data))))
++    {
++        ERR("Failed to allocate thread data.\n");
++        return NULL;
++    }
++
++    thread_data->proc = proc;
++    thread_data->data = data;
++
++    if (!(thread = CreateThread(NULL, 0, dxvk_thread_main, thread_data, 0, NULL)))
++        heap_free(thread_data);
++
++    return thread;
++}
++
++static int dxvk_join_thread(void *thread)
++{
++    HANDLE h = thread;
++    DWORD ret = WaitForSingleObject(h, INFINITE);
++
++    return ret == WAIT_OBJECT_0;
++}
++
++static void dxvk_detach_thread(void *thread)
++{
++    HANDLE h = thread;
++    
++    CloseHandle(h);
++}
++
++PFN_vkVoidFunction native_vkGetInstanceProcAddrWINE(VkInstance instance, const char *name);
++
++static VkResult dxvk_create_vulkan_surface(VkInstance instance, void *window, VkSurfaceKHR *surface)
++{
++    PFN_vkCreateWin32SurfaceKHR pfn_create_surface;
++    HINSTANCE window_instance = (HINSTANCE) GetWindowLongPtrA(window, GWLP_HINSTANCE);
++    
++    if (!(pfn_create_surface = (PFN_vkCreateWin32SurfaceKHR) native_vkGetInstanceProcAddrWINE(instance, "vkCreateWin32SurfaceKHR")))
++        return VK_ERROR_EXTENSION_NOT_PRESENT;
++
++    VkWin32SurfaceCreateInfoKHR info;
++    info.sType      = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
++    info.pNext      = NULL;
++    info.flags      = 0;
++    info.hinstance  = window_instance;
++    info.hwnd       = window;
++
++    return pfn_create_surface(instance, &info, NULL, surface);
++}
++
++/* Helper functions for dxvk_swapchain */
++
++static int get_monitor_format_bpp(DXGI_FORMAT format) {
++    switch (format) {
++        case DXGI_FORMAT_R8G8B8A8_UNORM:
++        case DXGI_FORMAT_B8G8R8A8_UNORM:
++        case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:
++        case DXGI_FORMAT_B8G8R8A8_UNORM_SRGB:
++        case DXGI_FORMAT_R10G10B10A2_UNORM:
++            return 32;
++      
++        case DXGI_FORMAT_R16G16B16A16_FLOAT:
++            return 64;
++      
++        default:
++            WARN("GetMonitorFormatBpp: Unknown format: %d\n", format);
++            return 32;
++    }
++}
++
++static HRESULT get_monitor_display_mode(HMONITOR monitor, DWORD mode_num, DXGI_MODE_DESC *mode)
++{
++    MONITORINFOEXW mon_info;
++    mon_info.cbSize = sizeof(mon_info);
++
++    if (!GetMonitorInfoW(monitor, (MONITORINFO*) &mon_info))
++    {
++        ERR("DXGI: Failed to query monitor info\n");
++        return E_FAIL;
++    }
++    
++    DEVMODEW dev_mode = { };
++    dev_mode.dmSize = sizeof(dev_mode);
++    
++    if (!EnumDisplaySettingsW(mon_info.szDevice, mode_num, &dev_mode))
++      return DXGI_ERROR_NOT_FOUND;
++    
++    mode->Width = dev_mode.dmPelsWidth;
++    mode->Height = dev_mode.dmPelsHeight;
++    mode->RefreshRate.Numerator = dev_mode.dmDisplayFrequency;
++    mode->RefreshRate.Denominator = 1;
++    mode->Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB; /* FIXME */
++    mode->ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_PROGRESSIVE;
++    mode->Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
++    return S_OK;
++}
++
++static HRESULT set_monitor_display_mode(HMONITOR monitor, const DXGI_MODE_DESC *mode)
++{
++    MONITORINFOEXW mon_info;
++    mon_info.cbSize = sizeof(mon_info);
++
++    if (!GetMonitorInfoW(monitor, (MONITORINFO*) &mon_info)) {
++        ERR("DXGI: Failed to query monitor info\n");
++        return E_FAIL;
++    }
++    
++    DEVMODEW dev_mode = { };
++    dev_mode.dmSize       = sizeof(dev_mode);
++    dev_mode.dmFields     = DM_PELSWIDTH | DM_PELSHEIGHT | DM_BITSPERPEL;
++    dev_mode.dmPelsWidth  = mode->Width;
++    dev_mode.dmPelsHeight = mode->Height;
++    dev_mode.dmBitsPerPel = get_monitor_format_bpp(mode->Format);
++    
++    if (mode->RefreshRate.Numerator != 0)  {
++      dev_mode.dmFields |= DM_DISPLAYFREQUENCY;
++      dev_mode.dmDisplayFrequency = mode->RefreshRate.Numerator
++                                 / mode->RefreshRate.Denominator;
++    }
++    
++    TRACE("DXGI: Setting display mode: %ux%u@%u\n",
++        dev_mode.dmPelsWidth, dev_mode.dmPelsHeight, dev_mode.dmDisplayFrequency);
++    
++    LONG status = ChangeDisplaySettingsExW(
++        mon_info.szDevice, &dev_mode, NULL, CDS_FULLSCREEN, NULL);
++    
++    return status == DISP_CHANGE_SUCCESSFUL ? S_OK : DXGI_ERROR_NOT_CURRENTLY_AVAILABLE;
++}
++
++struct dxvk_swapchain
++{
++    IDXGISwapChain1 IDXGISwapChain1_iface;
++    LONG refcount;
++
++    struct wined3d_private_store private_store;
++    IDXGIFactory *factory;
++    IDXGIAdapter *adapter;
++
++    HANDLE window_mutex;
++    HANDLE buffer_mutex;
++
++    HWND window;
++    HMONITOR monitor;
++
++    DXGI_SWAP_CHAIN_DESC1 desc;
++    DXGI_SWAP_CHAIN_FULLSCREEN_DESC desc_fs;
++    DXGI_FRAME_STATISTICS stats;
++
++    LONG window_style;
++    LONG window_exstyle;
++    RECT window_rect;
++
++    IDXGIVkSwapChain *presenter;
++};
++
++/* Private methods */
++
++static HRESULT dxvk_swapchain_ChangeDisplayMode(struct dxvk_swapchain *swapchain,
++        IDXGIOutput *output, const DXGI_MODE_DESC *display_mode)
++{
++    HRESULT hr;
++    DXGI_OUTPUT_DESC output_desc;
++    DXGI_MODE_DESC preferred_mode;
++    DXGI_MODE_DESC selected_mode;
++
++    if (!output)
++        return DXGI_ERROR_INVALID_CALL;
++
++    /* Find a mode that the output supports */
++    IDXGIOutput_GetDesc(output, &output_desc);
++
++    preferred_mode = *display_mode;
++
++    if (preferred_mode.Format == DXGI_FORMAT_UNKNOWN)
++        preferred_mode.Format = swapchain->desc.Format;
++
++    hr = IDXGIOutput_FindClosestMatchingMode(output, &preferred_mode, &selected_mode, NULL);
++
++    if (FAILED(hr))
++    {
++        ERR("DXGI: Failed to query closest mode\n");
++    }
++
++    return set_monitor_display_mode(output_desc.Monitor, &selected_mode);
++}
++
++static HRESULT dxvk_swapchain_RestoreDisplayMode(struct dxvk_swapchain *swapchain, HMONITOR monitor)
++{
++    HRESULT hr;
++    DXGI_MODE_DESC mode;
++
++    if (!monitor)
++        return DXGI_ERROR_INVALID_CALL;
++
++    /* Restore registry settings  */
++    hr = get_monitor_display_mode(monitor, ENUM_REGISTRY_SETTINGS, &mode);
++
++    if (FAILED(hr))
++        return hr;
++
++    return set_monitor_display_mode(monitor, &mode);
++}
++
++static HRESULT dxvk_swapchain_EnterFullscreenMode(struct dxvk_swapchain *swapchain, IDXGIOutput *target)
++{
++    if (!IsWindow(swapchain->window))
++        return DXGI_ERROR_NOT_CURRENTLY_AVAILABLE;
++
++    if (!target && FAILED(IDXGISwapChain1_GetContainingOutput(&swapchain->IDXGISwapChain1_iface, &target)))
++    {
++        ERR("DXGI: EnterFullscreenMode: Cannot query containing output\n");
++        return E_FAIL;
++    }
++
++    /* Find a display mode that matches what we need */
++    GetWindowRect(swapchain->window, &swapchain->window_rect);
++
++    if (swapchain->desc.Flags & DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH)
++    {
++        DXGI_MODE_DESC display_mode;
++        display_mode.Width = swapchain->desc.Width;
++        display_mode.Height = swapchain->desc.Height;
++        display_mode.RefreshRate = swapchain->desc_fs.RefreshRate;
++        display_mode.Format = swapchain->desc.Format;
++        /* Ignore these two, games usually use them wrong and we don't
++            support any scaling modes except UNSPECIFIED anyway. */
++        display_mode.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
++        display_mode.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
++
++        if (FAILED(dxvk_swapchain_ChangeDisplayMode(swapchain, target, &display_mode)))
++        {
++            ERR("DXGI: EnterFullscreenMode: Failed to change display mode\n");
++            return DXGI_ERROR_NOT_CURRENTLY_AVAILABLE;
++        }
++    }
++
++    /* Update swap chain description */
++    swapchain->desc_fs.Windowed = FALSE;
++
++    /* Change the window flags to remove the decoration etc. */
++    LONG style   = GetWindowLongW(swapchain->window, GWL_STYLE);
++    LONG exstyle = GetWindowLongW(swapchain->window, GWL_EXSTYLE);
++
++    swapchain->window_style = style;
++    swapchain->window_exstyle = exstyle;
++
++    style &= ~WS_OVERLAPPEDWINDOW;
++    exstyle &= WS_EX_OVERLAPPEDWINDOW;
++
++    SetWindowLongW(swapchain->window, GWL_STYLE, style);
++    SetWindowLongW(swapchain->window, GWL_EXSTYLE, exstyle);
++
++    /* Move the window so that it covers the entire output */
++    DXGI_OUTPUT_DESC desc;
++    IDXGIOutput_GetDesc(target, &desc);
++
++    const RECT rect = desc.DesktopCoordinates;
++
++    SetWindowPos(swapchain->window, HWND_TOPMOST,
++      rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top,
++      SWP_FRAMECHANGED | SWP_SHOWWINDOW | SWP_NOACTIVATE);
++
++    swapchain->monitor = desc.Monitor;
++
++    /* TODO: set gamma control */
++
++    return S_OK;
++}
++
++static HRESULT dxvk_swapchain_LeaveFullScreenMode(struct dxvk_swapchain *swapchain)
++{
++    if (!IsWindow(swapchain->window))
++        return DXGI_ERROR_NOT_CURRENTLY_AVAILABLE;
++
++    if (FAILED(dxvk_swapchain_RestoreDisplayMode(swapchain, swapchain->monitor)))
++        WARN("DXGI: LeaveFullscreenMode: Failed to restore display mode\n");
++
++    /* TODO: Reset Gamma Control */
++
++    /* Restore internal state */
++    swapchain->desc_fs.Windowed = TRUE;
++    swapchain->monitor = NULL;
++
++    /* Only restore the window style if the application hasn't
++       changed them. This is in line with what native DXGI does.*/
++    LONG cur_style = GetWindowLongW(swapchain->window, GWL_STYLE) & ~WS_VISIBLE;
++    LONG cur_exstyle = GetWindowLongW(swapchain->window, GWL_EXSTYLE) & ~WS_EX_TOPMOST;
++
++    if (cur_style == (swapchain->window_style & ~(WS_VISIBLE | WS_OVERLAPPEDWINDOW))
++     && cur_exstyle == (swapchain->window_exstyle & ~(WS_EX_TOPMOST | WS_EX_OVERLAPPEDWINDOW)))
++    {
++        SetWindowLongW(swapchain->window, GWL_STYLE,   swapchain->window_style);
++        SetWindowLongW(swapchain->window, GWL_EXSTYLE, swapchain->window_exstyle);
++    }
++
++    /* Restore window position and apply the style */
++    const RECT rect = swapchain->window_rect;
++    
++    SetWindowPos(swapchain->window, 0,
++      rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top,
++      SWP_FRAMECHANGED | SWP_NOZORDER | SWP_NOACTIVATE);
++    
++    return S_OK;
++}
++
++static HRESULT dxvk_swapchain_GetOutputFromMonitor(struct dxvk_swapchain *swapchain, HMONITOR monitor, 
++        IDXGIOutput **output)
++{
++    if (!output)
++        return DXGI_ERROR_INVALID_CALL;
++    
++    for (unsigned int i = 0; SUCCEEDED( IDXGIAdapter_EnumOutputs(swapchain->adapter, i, output) ); i++)
++    {
++        DXGI_OUTPUT_DESC output_desc;
++        IDXGIOutput_GetDesc(*output, &output_desc);
++
++        if (output_desc.Monitor == monitor)
++            return S_OK;
++
++        IDXGIOutput_Release(*output);
++        *output = NULL;
++    }
++
++    return DXGI_ERROR_NOT_FOUND;
++}
++
++static inline struct dxvk_swapchain *dxvk_swapchain_from_IDXGISwapChain1(IDXGISwapChain1 *iface)
++{
++    return CONTAINING_RECORD(iface, struct dxvk_swapchain, IDXGISwapChain1_iface);
++}
++
++/* IUnknown methods */
++
++static HRESULT STDMETHODCALLTYPE dxvk_swapchain_QueryInterface(IDXGISwapChain1 *iface, REFIID riid, void **object)
++{
++    TRACE("iface %p, riid %s, object %p\n", iface, debugstr_guid(riid), object);
++
++    if (IsEqualGUID(riid, &IID_IUnknown)
++            || IsEqualGUID(riid, &IID_IDXGIObject)
++            || IsEqualGUID(riid, &IID_IDXGIDeviceSubObject)
++            || IsEqualGUID(riid, &IID_IDXGISwapChain)
++            || IsEqualGUID(riid, &IID_IDXGISwapChain1))
++    {
++        IUnknown_AddRef(iface);
++        *object = iface;
++        return S_OK;
++    }
++
++    WARN("%s not implemented, returning E_NOINTERFACE\n", debugstr_guid(riid));
++
++    *object = NULL;
++    return E_NOINTERFACE;
++}
++
++static ULONG STDMETHODCALLTYPE dxvk_swapchain_AddRef(IDXGISwapChain1 *iface)
++{
++    struct dxvk_swapchain *swapchain = dxvk_swapchain_from_IDXGISwapChain1(iface);
++    ULONG refcount = InterlockedIncrement(&swapchain->refcount);
++
++    TRACE("%p increasing refcount to %u.\n", swapchain, refcount);
++
++    return refcount;
++}
++
++static ULONG STDMETHODCALLTYPE dxvk_swapchain_Release(IDXGISwapChain1 *iface)
++{
++    struct dxvk_swapchain *swapchain = dxvk_swapchain_from_IDXGISwapChain1(iface);
++    ULONG refcount = InterlockedDecrement(&swapchain->refcount);
++
++    TRACE("%p decreasing refcount to %u.\n", swapchain, refcount);
++
++    if (!refcount)
++    {
++        dxvk_swapchain_RestoreDisplayMode(swapchain, swapchain->monitor);
++
++        CloseHandle(swapchain->window_mutex);
++        CloseHandle(swapchain->buffer_mutex);
++
++        if (swapchain->presenter)
++            IDXGIVkSwapChain_Release(swapchain->presenter);
++        if (swapchain->factory)
++            IDXGIFactory_Release(swapchain->factory);
++        if (swapchain->adapter)
++            IDXGIAdapter_Release(swapchain->adapter);
++    }
++
++    return refcount;
++}
++
++/* IDXGIObject methods */
++
++static HRESULT STDMETHODCALLTYPE dxvk_swapchain_SetPrivateData(IDXGISwapChain1 *iface,
++        REFGUID guid, UINT data_size, const void *data)
++{
++    struct dxvk_swapchain *swapchain = dxvk_swapchain_from_IDXGISwapChain1(iface);
++
++    TRACE("iface %p, guid %s, data_size %u, data %p.\n", iface, debugstr_guid(guid), data_size, data);
++
++    return d3d_set_private_data(&swapchain->private_store, guid, data_size, data);
++}
++
++static HRESULT STDMETHODCALLTYPE dxvk_swapchain_SetPrivateDataInterface(IDXGISwapChain1 *iface,
++        REFGUID guid, const IUnknown *object)
++{
++    struct dxvk_swapchain *swapchain = dxvk_swapchain_from_IDXGISwapChain1(iface);
++
++    TRACE("iface %p, guid %s, object %p.\n", iface, debugstr_guid(guid), object);
++
++    return d3d_set_private_data_interface(&swapchain->private_store, guid, object);
++}
++
++static HRESULT STDMETHODCALLTYPE dxvk_swapchain_GetPrivateData(IDXGISwapChain1 *iface,
++        REFGUID guid, UINT *data_size, void *data)
++{
++    struct dxvk_swapchain *swapchain = dxvk_swapchain_from_IDXGISwapChain1(iface);
++
++    TRACE("iface %p, guid %s, data_size %p, data %p.\n", iface, debugstr_guid(guid), data_size, data);
++
++    return d3d_get_private_data(&swapchain->private_store, guid, data_size, data);
++}
++
++static HRESULT STDMETHODCALLTYPE dxvk_swapchain_GetParent(IDXGISwapChain1 *iface, REFIID riid, void **parent)
++{
++    struct dxvk_swapchain *swapchain = dxvk_swapchain_from_IDXGISwapChain1(iface);
++
++    TRACE("iface %p, riid %s, parent %p.\n", iface, debugstr_guid(riid), parent);
++
++    if (!swapchain->factory)
++    {
++        ERR("Implicit swapchain does not store reference to parent.\n");
++        *parent = NULL;
++        return E_NOINTERFACE;
++    }
++
++    return IDXGIFactory_QueryInterface(swapchain->factory, riid, parent);
++}
++
++/* IDXGIDeviceSubObject methods */
++
++static HRESULT STDMETHODCALLTYPE dxvk_swapchain_GetDevice(IDXGISwapChain1 *iface, REFIID riid, void **device)
++{
++    struct dxvk_swapchain *swapchain = dxvk_swapchain_from_IDXGISwapChain1(iface);
++
++    return IDXGIVkSwapChain_GetDevice(swapchain->presenter, riid, device);
++}
++
++/* IDXGISwapChain1 methods */
++
++static HRESULT STDMETHODCALLTYPE dxvk_swapchain_Present(IDXGISwapChain1 *iface, UINT sync_interval, UINT flags)
++{
++    struct dxvk_swapchain *swapchain = dxvk_swapchain_from_IDXGISwapChain1(iface);
++
++    return IDXGISwapChain1_Present1(&swapchain->IDXGISwapChain1_iface, sync_interval, flags, NULL);
++}
++
++static HRESULT STDMETHODCALLTYPE dxvk_swapchain_GetBuffer(IDXGISwapChain1 *iface,
++        UINT buffer_idx, REFIID riid, void **surface)
++{
++    struct dxvk_swapchain *swapchain = dxvk_swapchain_from_IDXGISwapChain1(iface);
++
++    return IDXGIVkSwapChain_GetImage(swapchain->presenter, buffer_idx, riid, surface);
++}
++
++static HRESULT STDMETHODCALLTYPE DECLSPEC_HOTPATCH dxvk_swapchain_SetFullscreenState(IDXGISwapChain1 *iface,
++        BOOL fullscreen, IDXGIOutput *target)
++{
++    struct dxvk_swapchain *swapchain = dxvk_swapchain_from_IDXGISwapChain1(iface);
++
++    WaitForSingleObject(swapchain->window_mutex, INFINITE);
++
++    if (swapchain->desc_fs.Windowed && fullscreen)
++    {   
++        dxvk_swapchain_EnterFullscreenMode(swapchain, target);
++    }
++    else if (!swapchain->desc_fs.Windowed && !fullscreen)
++    {
++        dxvk_swapchain_LeaveFullScreenMode(swapchain);
++    }
++
++    ReleaseMutex(swapchain->window_mutex);
++
++    return S_OK;
++}
++
++static HRESULT STDMETHODCALLTYPE dxvk_swapchain_GetFullscreenState(IDXGISwapChain1 *iface,
++        BOOL *fullscreen, IDXGIOutput **target)
++{
++    struct dxvk_swapchain *swapchain = dxvk_swapchain_from_IDXGISwapChain1(iface);
++
++    HRESULT hr = S_OK;
++    
++    if (fullscreen != NULL)
++      *fullscreen = !swapchain->desc_fs.Windowed;
++    
++    if (target != NULL)
++    {
++        *target = NULL;
++      
++        if (!swapchain->desc_fs.Windowed)
++            hr = dxvk_swapchain_GetOutputFromMonitor(swapchain, swapchain->monitor, target);
++    }
++    
++    return hr;
++}
++
++static HRESULT STDMETHODCALLTYPE dxvk_swapchain_GetDesc(IDXGISwapChain1 *iface, DXGI_SWAP_CHAIN_DESC *desc)
++{
++    struct dxvk_swapchain *swapchain = dxvk_swapchain_from_IDXGISwapChain1(iface);
++
++    if (!desc)
++        return DXGI_ERROR_INVALID_CALL;
++    
++    desc->BufferDesc.Width = swapchain->desc.Width;
++    desc->BufferDesc.Height = swapchain->desc.Height;
++    desc->BufferDesc.RefreshRate = swapchain->desc_fs.RefreshRate;
++    desc->BufferDesc.Format = swapchain->desc.Format;
++    desc->BufferDesc.ScanlineOrdering = swapchain->desc_fs.ScanlineOrdering;
++    desc->BufferDesc.Scaling = swapchain->desc_fs.Scaling;
++    desc->SampleDesc = swapchain->desc.SampleDesc;
++    desc->BufferUsage = swapchain->desc.BufferUsage;
++    desc->BufferCount = swapchain->desc.BufferCount;
++    desc->OutputWindow = swapchain->window;
++    desc->Windowed = swapchain->desc_fs.Windowed;
++    desc->SwapEffect = swapchain->desc.SwapEffect;
++    desc->Flags = swapchain->desc.Flags;
++
++    return S_OK;
++}
++
++static HRESULT STDMETHODCALLTYPE dxvk_swapchain_ResizeBuffers(IDXGISwapChain1 *iface,
++        UINT buffer_count, UINT width, UINT height, DXGI_FORMAT format, UINT flags)
++{
++    struct dxvk_swapchain *swapchain = dxvk_swapchain_from_IDXGISwapChain1(iface);
++    HRESULT hr;
++    RECT rect;
++
++    if (!IsWindow(swapchain->window))
++        return DXGI_ERROR_INVALID_CALL;
++
++    WaitForSingleObject(swapchain->buffer_mutex, INFINITE);
++
++    swapchain->desc.Width = width;
++    swapchain->desc.Height = height;
++
++    GetClientRect(swapchain->window, &rect);
++
++    if (!swapchain->desc.Width)
++        swapchain->desc.Width = rect.right - rect.left;
++    if (!swapchain->desc.Height)
++        swapchain->desc.Height = rect.bottom - rect.top; 
++
++    if (buffer_count)
++        swapchain->desc.BufferCount = buffer_count;
++
++    if (format != DXGI_FORMAT_UNKNOWN)
++        swapchain->desc.Format = format;
++
++    hr = IDXGIVkSwapChain_ChangeProperties(swapchain->presenter, &swapchain->desc);
++
++    ReleaseMutex(swapchain->buffer_mutex);
++
++    return hr;
++}
++
++static HRESULT STDMETHODCALLTYPE dxvk_swapchain_ResizeTarget(IDXGISwapChain1 *iface,
++        const DXGI_MODE_DESC *target_mode_desc)
++{
++    struct dxvk_swapchain *swapchain = dxvk_swapchain_from_IDXGISwapChain1(iface);
++
++    if (!target_mode_desc)
++        return DXGI_ERROR_INVALID_CALL;
++
++    if (!target_mode_desc)
++        return DXGI_ERROR_INVALID_CALL;
++
++    WaitForSingleObject(swapchain->window_mutex, INFINITE);
++
++    /* Update the swap chain description */
++    if (target_mode_desc->RefreshRate.Numerator)
++        swapchain->desc_fs.RefreshRate = target_mode_desc->RefreshRate;
++    
++    swapchain->desc_fs.ScanlineOrdering = target_mode_desc->ScanlineOrdering;
++    swapchain->desc_fs.Scaling = target_mode_desc->Scaling;
++    
++    if (swapchain->desc_fs.Windowed)
++    {
++        /* Adjust window position and size */
++        RECT new_rect = { 0, 0, 0, 0 };
++        RECT old_rect = { 0, 0, 0, 0 };
++    
++        GetWindowRect(swapchain->window, &old_rect);
++        SetRect(&new_rect, 0, 0, target_mode_desc->Width, target_mode_desc->Height);
++        AdjustWindowRectEx(&new_rect,
++            GetWindowLongW(swapchain->window, GWL_STYLE), FALSE,
++            GetWindowLongW(swapchain->window, GWL_EXSTYLE));
++        SetRect(&new_rect, 0, 0, new_rect.right - new_rect.left, new_rect.bottom - new_rect.top);
++        OffsetRect(&new_rect, old_rect.left, old_rect.top);    
++        MoveWindow(swapchain->window, new_rect.left, new_rect.top,
++            new_rect.right - new_rect.left, new_rect.bottom - new_rect.top, TRUE);
++    } else {
++        IDXGIOutput *output;
++      
++        if (FAILED(dxvk_swapchain_GetOutputFromMonitor(swapchain, swapchain->monitor, &output)))
++        {
++            ERR("DXGI: ResizeTarget: Failed to query containing output\n");
++            goto failure;
++        }
++      
++        /* If the swap chain allows it, change the display mode */
++        if (swapchain->desc.Flags & DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH)
++            dxvk_swapchain_ChangeDisplayMode(swapchain, output, target_mode_desc);
++
++        /* Resize and reposition the window to */
++        DXGI_OUTPUT_DESC desc;
++        IDXGIOutput_GetDesc(output, &desc);
++
++        RECT new_rect = desc.DesktopCoordinates;
++      
++        MoveWindow(swapchain->window, new_rect.left, new_rect.top,
++            new_rect.right - new_rect.left, new_rect.bottom - new_rect.top, TRUE);
++    }
++
++    ReleaseMutex(swapchain->window_mutex);
++    return S_OK;
++
++    failure:
++    ReleaseMutex(swapchain->window_mutex);
++    return E_FAIL;
++}
++
++static HRESULT STDMETHODCALLTYPE dxvk_swapchain_GetContainingOutput(IDXGISwapChain1 *iface, IDXGIOutput **output)
++{
++    struct dxvk_swapchain *swapchain = dxvk_swapchain_from_IDXGISwapChain1(iface);
++
++    if (output)
++        *output = NULL;
++
++    if (!IsWindow(swapchain->window))
++      return DXGI_ERROR_INVALID_CALL;
++    
++    RECT window_rect = { 0, 0, 0, 0 };
++    GetWindowRect(swapchain->window, &window_rect);
++    
++    POINT monitor_point = { (window_rect.left + window_rect.right) / 2,
++        (window_rect.top + window_rect.bottom) / 2 };
++
++    HMONITOR monitor = MonitorFromPoint(monitor_point, MONITOR_DEFAULTTOPRIMARY);
++    
++    return dxvk_swapchain_GetOutputFromMonitor(swapchain, monitor, output);
++}
++
++static HRESULT STDMETHODCALLTYPE dxvk_swapchain_GetFrameStatistics(IDXGISwapChain1 *iface,
++        DXGI_FRAME_STATISTICS *stats)
++{
++    struct dxvk_swapchain *swapchain = dxvk_swapchain_from_IDXGISwapChain1(iface);
++
++    if (!stats)
++        return DXGI_ERROR_INVALID_CALL;
++
++    *stats = swapchain->stats;
++    return S_OK;
++}
++
++static HRESULT STDMETHODCALLTYPE dxvk_swapchain_GetLastPresentCount(IDXGISwapChain1 *iface,
++        UINT *last_present_count)
++{
++    struct dxvk_swapchain *swapchain = dxvk_swapchain_from_IDXGISwapChain1(iface);
++
++    if (!last_present_count)
++        return DXGI_ERROR_INVALID_CALL;
++
++    *last_present_count = swapchain->stats.PresentCount;
++    return S_OK;
++}
++
++/* IDXGISwapChain1 methods */
++static HRESULT STDMETHODCALLTYPE dxvk_swapchain_GetDesc1(IDXGISwapChain1 *iface, DXGI_SWAP_CHAIN_DESC1 *desc)
++{
++    struct dxvk_swapchain *swapchain = dxvk_swapchain_from_IDXGISwapChain1(iface);
++
++    if (!desc)
++        return DXGI_ERROR_INVALID_CALL;
++    
++    *desc = swapchain->desc;
++    return S_OK;
++}
++
++static HRESULT STDMETHODCALLTYPE dxvk_swapchain_GetFullscreenDesc(IDXGISwapChain1 *iface,
++        DXGI_SWAP_CHAIN_FULLSCREEN_DESC *desc)
++{
++    struct dxvk_swapchain *swapchain = dxvk_swapchain_from_IDXGISwapChain1(iface);
++
++    if (!desc)
++      return DXGI_ERROR_INVALID_CALL;
++    
++    *desc = swapchain->desc_fs;
++    return S_OK;
++}
++
++static HRESULT STDMETHODCALLTYPE dxvk_swapchain_GetHwnd(IDXGISwapChain1 *iface, HWND *hwnd)
++{
++    struct dxvk_swapchain *swapchain = dxvk_swapchain_from_IDXGISwapChain1(iface);
++
++    if (!hwnd)
++      return DXGI_ERROR_INVALID_CALL;
++    
++    *hwnd = swapchain->window;
++    return S_OK;
++}
++
++static HRESULT STDMETHODCALLTYPE dxvk_swapchain_GetCoreWindow(IDXGISwapChain1 *iface,
++        REFIID iid, void **core_window)
++{
++    if (core_window)
++        *core_window = NULL;
++
++    ERR("DxgiSwapChain::GetCoreWindow: Not implemented\n");
++    return E_NOTIMPL;
++}
++
++static HRESULT STDMETHODCALLTYPE dxvk_swapchain_Present1(IDXGISwapChain1 *iface,
++        UINT sync_interval, UINT flags, const DXGI_PRESENT_PARAMETERS *present_parameters)
++{
++    struct dxvk_swapchain *swapchain = dxvk_swapchain_from_IDXGISwapChain1(iface);
++    HRESULT hr;
++
++    if (!IsWindow(swapchain->window))
++        return DXGI_ERROR_INVALID_CALL;
++
++    if (flags & DXGI_PRESENT_TEST)
++        return S_OK;
++
++    HANDLE wait_handles[2] = {swapchain->window_mutex, swapchain->buffer_mutex};
++
++    WaitForMultipleObjects(2, wait_handles, TRUE, INFINITE);
++
++    /* Higher values are not allowed according to the Microsoft documentation:
++    *
++    *  "1 through 4 - Synchronize presentation after the nth vertical blank."
++    *  https://msdn.microsoft.com/en-us/library/windows/desktop/bb174576(v=vs.85).aspx */
++    if(sync_interval > 4)
++        sync_interval = 4;
++
++    // TODO: we can't catch the exception from C code AFAIK
++    hr = IDXGIVkSwapChain_Present(swapchain->presenter, sync_interval, flags, NULL);
++
++    ReleaseMutex(swapchain->window_mutex);
++    ReleaseMutex(swapchain->buffer_mutex);
++
++    return hr;
++}
++
++static BOOL STDMETHODCALLTYPE dxvk_swapchain_IsTemporaryMonoSupported(IDXGISwapChain1 *iface)
++{
++    /* This seems to be related to stereo 3D display
++       modes, which we don't support at the moment */
++    return FALSE;
++}
++
++static HRESULT STDMETHODCALLTYPE dxvk_swapchain_GetRestrictToOutput(IDXGISwapChain1 *iface, IDXGIOutput **output)
++{
++    if (output)
++        *output = NULL;
++
++    ERR("DxgiSwapChain::GetRestrictToOutput: Not implemented\n");
++    return E_NOTIMPL;
++}
++
++static HRESULT STDMETHODCALLTYPE dxvk_swapchain_SetBackgroundColor(IDXGISwapChain1 *iface, const DXGI_RGBA *color)
++{
++    ERR("DxgiSwapChain::SetBackgroundColor: Not implemented\n");
++    return E_NOTIMPL;
++}
++
++static HRESULT STDMETHODCALLTYPE dxvk_swapchain_GetBackgroundColor(IDXGISwapChain1 *iface, DXGI_RGBA *color)
++{
++    ERR("DxgiSwapChain::GetBackgroundColor: Not implemented\n");
++    return E_NOTIMPL;
++}
++
++static HRESULT STDMETHODCALLTYPE dxvk_swapchain_SetRotation(IDXGISwapChain1 *iface, DXGI_MODE_ROTATION rotation)
++{
++    ERR("DxgiSwapChain::SetRotation: Not implemented\n");
++    return E_NOTIMPL;
++}
++
++static HRESULT STDMETHODCALLTYPE dxvk_swapchain_GetRotation(IDXGISwapChain1 *iface, DXGI_MODE_ROTATION *rotation)
++{
++    ERR("DxgiSwapChain::GetRotation: Not implemented\n");
++    return E_NOTIMPL;
++}
++
++static const struct IDXGISwapChain1Vtbl dxvk_swapchain_vtbl =
++{
++    /* IUnknown methods */
++    dxvk_swapchain_QueryInterface,
++    dxvk_swapchain_AddRef,
++    dxvk_swapchain_Release,
++    /* IDXGIObject methods */
++    dxvk_swapchain_SetPrivateData,
++    dxvk_swapchain_SetPrivateDataInterface,
++    dxvk_swapchain_GetPrivateData,
++    dxvk_swapchain_GetParent,
++    /* IDXGIDeviceSubObject methods */
++    dxvk_swapchain_GetDevice,
++    /* IDXGISwapChain methods */
++    dxvk_swapchain_Present,
++    dxvk_swapchain_GetBuffer,
++    dxvk_swapchain_SetFullscreenState,
++    dxvk_swapchain_GetFullscreenState,
++    dxvk_swapchain_GetDesc,
++    dxvk_swapchain_ResizeBuffers,
++    dxvk_swapchain_ResizeTarget,
++    dxvk_swapchain_GetContainingOutput,
++    dxvk_swapchain_GetFrameStatistics,
++    dxvk_swapchain_GetLastPresentCount,
++    /* IDXGISwapChain1 methods */
++    dxvk_swapchain_GetDesc1,
++    dxvk_swapchain_GetFullscreenDesc,
++    dxvk_swapchain_GetHwnd,
++    dxvk_swapchain_GetCoreWindow,
++    dxvk_swapchain_Present1,
++    dxvk_swapchain_IsTemporaryMonoSupported,
++    dxvk_swapchain_GetRestrictToOutput,
++    dxvk_swapchain_SetBackgroundColor,
++    dxvk_swapchain_GetBackgroundColor,
++    dxvk_swapchain_SetRotation,
++    dxvk_swapchain_GetRotation,
++};
++
++static IDXGISwapChain1* dxvk_create_dxgi_swapchain(IDXGIVkSwapChain *presenter, 
++                        IDXGIFactory *pFactory, 
++                        HWND hwnd, 
++                        const DXGI_SWAP_CHAIN_DESC1 *pDesc, 
++                        const DXGI_SWAP_CHAIN_FULLSCREEN_DESC *pFullscreenDesc)
++{
++    struct dxvk_swapchain *object = heap_alloc_zero(sizeof(struct dxvk_swapchain));
++    if (!object)
++        return NULL;
++
++    object->IDXGISwapChain1_iface.lpVtbl = &dxvk_swapchain_vtbl;
++    object->refcount = 1;
++
++    object->window_style = 0;
++    object->window_exstyle = 0;
++    RECT default_window_rect = { 0, 0, 0, 0 };
++    object->window_rect = default_window_rect;
++
++    wined3d_private_store_init(&object->private_store);
++
++    object->window_mutex = CreateMutexA(NULL, FALSE, NULL);
++    object->buffer_mutex = CreateMutexA(NULL, FALSE, NULL);
++
++    object->factory = pFactory;
++    object->window = hwnd;
++    object->desc = *pDesc;
++    object->desc_fs = *pFullscreenDesc;
++    object->presenter = presenter;
++    object->monitor = NULL;
++
++    object->stats.PresentCount = 0;
++    object->stats.PresentRefreshCount = 0;
++    object->stats.SyncRefreshCount = 0;
++    object->stats.SyncQPCTime.QuadPart = 0;
++    object->stats.SyncGPUTime.QuadPart = 0;
++    
++    if (!object->desc_fs.Windowed && FAILED(dxvk_swapchain_EnterFullscreenMode(object, NULL)))
++    {
++        ERR("DXGI: Failed to set initial fullscreen state");
++        goto failure;
++    }
++
++    if (FAILED(IDXGIVkSwapChain_GetAdapter(object->presenter, &IID_IDXGIAdapter, (void**) object->adapter)))
++    {
++        ERR("DXGI: Failed to get adapter for present device");
++        goto failure;
++    }
++
++    return &object->IDXGISwapChain1_iface;
++
++    failure:
++
++    CloseHandle(object->window_mutex);
++    CloseHandle(object->buffer_mutex);
++
++    heap_free(object);
++    return NULL;
++}
++
++static dxvk_native_info native_info =
++{
++    dxvk_create_thread,
++    dxvk_join_thread,
++    dxvk_detach_thread,
++    native_vkGetInstanceProcAddrWINE,
++    dxvk_create_vulkan_surface,
++    dxvk_create_dxgi_swapchain
++};
++
++HRESULT create_d3d_device_dxvk(IDXGIAdapter *adapter, D3D_DRIVER_TYPE driver_type, HMODULE swrast, UINT flags,
++        const D3D_FEATURE_LEVEL *feature_levels, UINT levels, UINT sdk_version, ID3D11Device **device_out,
++        D3D_FEATURE_LEVEL *obtained_feature_level, ID3D11DeviceContext **immediate_context)
++{
++    if (!adapter)
++    {
++        IDXGIFactory *new_factory;
++
++        /* We'll treat everything as hardware, even if the
++           Vulkan device is actually a software device. */
++        if (driver_type != D3D_DRIVER_TYPE_HARDWARE)
++            WARN("D3D11CreateDevice: Unsupported driver type\n");
++
++        /* We'll use the first adapter returned by a DXGI factory */
++        if (FAILED(CreateDXGIFactory1(&IID_IDXGIFactory, (void**)&new_factory)))
++        {
++            ERR("D3D11CreateDevice: Failed to create a DXGI factory\n");
++            return E_FAIL;
++        }
++
++        if (FAILED(IDXGIFactory_EnumAdapters(new_factory, 0, &adapter)))
++        {
++            ERR("D3D11CreateDevice: No default adapter available\n");
++            return E_FAIL;
++        }
++    }
++
++
++    return pfn_dxvk_native_create_d3d11_device(native_info, adapter, driver_type, swrast, flags, feature_levels,
++            levels, sdk_version, device_out, obtained_feature_level, immediate_context);
++}
++
++#else
++#error 2
++    int is_dxvk_supported(void)
++    {
++        return 0;
++    }
++#endif
+\ No newline at end of file
+diff --git a/include/config.h.in b/include/config.h.in
+index c5a3cb4807a..af65d2f6b4a 100644
+--- a/include/config.h.in
++++ b/include/config.h.in
+@@ -1548,6 +1548,9 @@
+ /* Define to the soname of the libv4l1 library. */
+ #undef SONAME_LIBV4L1
+ 
++/* Define to the soname of the libdxvk library. */
++#undef SONAME_LIBDXVK
++
+ /* Define to the soname of the libvkd3d library. */
+ #undef SONAME_LIBVKD3D
+ 
+diff --git a/include/wine/winedxgi.idl b/include/wine/winedxgi.idl
+index f300eb928b6..a43f4792efc 100644
+--- a/include/wine/winedxgi.idl
++++ b/include/wine/winedxgi.idl
+@@ -85,3 +85,51 @@ interface IWineDXGIAdapter : IDXGIAdapter4
+ interface IWineDXGIFactory : IDXGIFactory5
+ {
+ }
++
++[
++    object,
++    local,
++    uuid(104001a6-7f36-4957-b932-86ade9567d91)
++]
++interface IDXGIVkSwapChain : IUnknown
++{
++    HRESULT GetDesc(
++        [out] DXGI_SWAP_CHAIN_DESC1 *pDesc
++    );
++
++    HRESULT GetAdapter(
++        [in] REFIID riid,
++        [out] void **ppvObject
++    );
++
++    HRESULT GetDevice(
++        [in] REFIID riid,
++        [out] void **ppDevice
++    );
++
++    HRESULT GetImage(
++          UINT BufferId,
++          REFIID riid,
++          void **ppBuffer
++    );
++
++    UINT GetImageIndex();
++
++    HRESULT ChangeProperties(
++        [in] const DXGI_SWAP_CHAIN_DESC1 *pDesc
++    );
++
++    HRESULT SetPresentRegion(
++        [in] const RECT *pRegion
++    );
++
++    HRESULT SetGammaControl(
++        [in] UINT NumControlPoints,
++        [in] const DXGI_RGB* pControlPoints
++    );
++
++    HRESULT Present(
++        [in] UINT SyncInterval,
++        [in] UINT PresentFlags,
++        [in] const DXGI_PRESENT_PARAMETERS *pPresentParameters);
++}
+\ No newline at end of file
+
+From 022d3b8dbb5aa25fa72460cc93abb99db34b0d8f Mon Sep 17 00:00:00 2001
+From: Derek Lesho <dereklesho52@Gmail.com>
+Date: Mon, 18 Feb 2019 16:39:27 -0500
+Subject: [PATCH 02/10] First working version
+
+---
+ dlls/d3d11/Makefile.in  |  2 +-
+ dlls/d3d11/d3d11_main.c |  3 ++-
+ dlls/d3d11/dxvk.c       | 36 +++++++++++++++++++++++-------------
+ 3 files changed, 26 insertions(+), 15 deletions(-)
+
+diff --git a/dlls/d3d11/Makefile.in b/dlls/d3d11/Makefile.in
+index d7bd7d420c2..a8b6f0b0f2b 100644
+--- a/dlls/d3d11/Makefile.in
++++ b/dlls/d3d11/Makefile.in
+@@ -1,6 +1,6 @@
+ MODULE    = d3d11.dll
+ IMPORTLIB = d3d11
+-IMPORTS   = advapi32 user32 dxguid uuid dxgi wined3d
++IMPORTS   = advapi32 user32 gdi32 dxguid uuid dxgi wined3d
+ EXTRAINCL = $(DXVK_CFLAGS)
+ 
+ C_SRCS = \
+diff --git a/dlls/d3d11/d3d11_main.c b/dlls/d3d11/d3d11_main.c
+index e29b45e312a..afec1efb2bf 100644
+--- a/dlls/d3d11/d3d11_main.c
++++ b/dlls/d3d11/d3d11_main.c
+@@ -186,7 +186,8 @@ HRESULT WINAPI D3D11CreateDevice(IDXGIAdapter *adapter, D3D_DRIVER_TYPE driver_t
+         const D3D_FEATURE_LEVEL *feature_levels, UINT levels, UINT sdk_version, ID3D11Device **device_out,
+         D3D_FEATURE_LEVEL *obtained_feature_level, ID3D11DeviceContext **immediate_context)
+ {
+-    if(is_dxvk_supported() && get_dxvk_enable_option())
++
++    if(get_dxvk_enable_option() && is_dxvk_supported())
+     {
+         return create_d3d_device_dxvk(adapter, driver_type, swrast, flags, feature_levels, levels, sdk_version, 
+                                         device_out, obtained_feature_level, immediate_context);
+diff --git a/dlls/d3d11/dxvk.c b/dlls/d3d11/dxvk.c
+index 0ed53e7db30..1f8653e02a7 100644
+--- a/dlls/d3d11/dxvk.c
++++ b/dlls/d3d11/dxvk.c
+@@ -19,18 +19,26 @@ WINE_DEFAULT_DEBUG_CHANNEL(d3d11);
+ #ifdef SONAME_LIBDXVK
+ static void* dxvk_lib;
+ 
++static struct vulkan_funcs *vulkan_funcs;
++
+ static PFN_dxvk_native_create_d3d11_device pfn_dxvk_native_create_d3d11_device;
+ 
+ int is_dxvk_supported(void)
+ {
+-    if ( !(dxvk_lib = wine_dlopen("dxvk", RTLD_LAZY | RTLD_NOLOAD, NULL, 0)) )
++    if ( !(dxvk_lib = wine_dlopen(SONAME_LIBDXVK, RTLD_LAZY | RTLD_NOLOAD, NULL, 0)) )
+     {
+-        if( !(dxvk_lib = wine_dlopen("dxvk", RTLD_LAZY | RTLD_LOCAL, NULL, 0)) )
++        if( !(dxvk_lib = wine_dlopen(SONAME_LIBDXVK, RTLD_LAZY | RTLD_LOCAL, NULL, 0)) )
+         {
+-            ERR("DXVK could not be found\n");
++            ERR("DXVK could not be found at %s\n", SONAME_LIBDXVK);
+             return 0;
+         } else {
+             pfn_dxvk_native_create_d3d11_device = wine_dlsym(dxvk_lib, "dxvk_native_create_d3d11_device", NULL, 0);
++            
++            HDC hdc;
++
++            hdc = GetDC(0);
++            vulkan_funcs = __wine_get_vulkan_driver(hdc, WINE_VULKAN_DRIVER_VERSION);
++            ReleaseDC(0, hdc);
+         }
+     }
+     
+@@ -70,6 +78,8 @@ static void* dxvk_create_thread(PFN_dxvk_thread_proc proc, void *data)
+     if (!(thread = CreateThread(NULL, 0, dxvk_thread_main, thread_data, 0, NULL)))
+         heap_free(thread_data);
+ 
++    TRACE("created a new thread for DXVK ID=%u\n", GetThreadId(thread));
++
+     return thread;
+ }
+ 
+@@ -88,15 +98,10 @@ static void dxvk_detach_thread(void *thread)
+     CloseHandle(h);
+ }
+ 
+-PFN_vkVoidFunction native_vkGetInstanceProcAddrWINE(VkInstance instance, const char *name);
+ 
+ static VkResult dxvk_create_vulkan_surface(VkInstance instance, void *window, VkSurfaceKHR *surface)
+ {
+-    PFN_vkCreateWin32SurfaceKHR pfn_create_surface;
+     HINSTANCE window_instance = (HINSTANCE) GetWindowLongPtrA(window, GWLP_HINSTANCE);
+-    
+-    if (!(pfn_create_surface = (PFN_vkCreateWin32SurfaceKHR) native_vkGetInstanceProcAddrWINE(instance, "vkCreateWin32SurfaceKHR")))
+-        return VK_ERROR_EXTENSION_NOT_PRESENT;
+ 
+     VkWin32SurfaceCreateInfoKHR info;
+     info.sType      = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+@@ -105,7 +110,9 @@ static VkResult dxvk_create_vulkan_surface(VkInstance instance, void *window, Vk
+     info.hinstance  = window_instance;
+     info.hwnd       = window;
+ 
+-    return pfn_create_surface(instance, &info, NULL, surface);
++    VkResult (*pfn_vkCreateWin32SurfaceKHR)(VkInstance, const VkWin32SurfaceCreateInfoKHR *, const VkAllocationCallbacks *, VkSurfaceKHR *);
++
++    return vulkan_funcs->p_vkCreateWin32SurfaceKHR(instance, &info, NULL, surface);
+ }
+ 
+ /* Helper functions for dxvk_swapchain */
+@@ -436,12 +443,12 @@ static ULONG STDMETHODCALLTYPE dxvk_swapchain_Release(IDXGISwapChain1 *iface)
+         CloseHandle(swapchain->window_mutex);
+         CloseHandle(swapchain->buffer_mutex);
+ 
+-        if (swapchain->presenter)
+-            IDXGIVkSwapChain_Release(swapchain->presenter);
+         if (swapchain->factory)
+             IDXGIFactory_Release(swapchain->factory);
+         if (swapchain->adapter)
+             IDXGIAdapter_Release(swapchain->adapter);
++        if (swapchain->presenter)
++            IDXGIVkSwapChain_Release(swapchain->presenter);
+     }
+ 
+     return refcount;
+@@ -911,10 +918,12 @@ static IDXGISwapChain1* dxvk_create_dxgi_swapchain(IDXGIVkSwapChain *presenter,
+     object->window_mutex = CreateMutexA(NULL, FALSE, NULL);
+     object->buffer_mutex = CreateMutexA(NULL, FALSE, NULL);
+ 
++    IDXGIFactory_AddRef(pFactory);
+     object->factory = pFactory;
+     object->window = hwnd;
+     object->desc = *pDesc;
+     object->desc_fs = *pFullscreenDesc;
++    IDXGIVkSwapChain_AddRef(presenter);
+     object->presenter = presenter;
+     object->monitor = NULL;
+ 
+@@ -930,7 +939,7 @@ static IDXGISwapChain1* dxvk_create_dxgi_swapchain(IDXGIVkSwapChain *presenter,
+         goto failure;
+     }
+ 
+-    if (FAILED(IDXGIVkSwapChain_GetAdapter(object->presenter, &IID_IDXGIAdapter, (void**) object->adapter)))
++    if (FAILED(IDXGIVkSwapChain_GetAdapter(object->presenter, &IID_IDXGIAdapter, (void**) &object->adapter)))
+     {
+         ERR("DXGI: Failed to get adapter for present device");
+         goto failure;
+@@ -952,7 +961,7 @@ static dxvk_native_info native_info =
+     dxvk_create_thread,
+     dxvk_join_thread,
+     dxvk_detach_thread,
+-    native_vkGetInstanceProcAddrWINE,
++    NULL,
+     dxvk_create_vulkan_surface,
+     dxvk_create_dxgi_swapchain
+ };
+@@ -984,6 +993,7 @@ HRESULT create_d3d_device_dxvk(IDXGIAdapter *adapter, D3D_DRIVER_TYPE driver_typ
+         }
+     }
+ 
++    native_info.pfn_vkGetInstanceProcAddr = vulkan_funcs->p_vkGetInstanceProcAddr;
+ 
+     return pfn_dxvk_native_create_d3d11_device(native_info, adapter, driver_type, swrast, flags, feature_levels,
+             levels, sdk_version, device_out, obtained_feature_level, immediate_context);
+
+From f2dd8e5950dbb655576a902baba906863f2d32fb Mon Sep 17 00:00:00 2001
+From: Derek Lesho <dereklesho52@Gmail.com>
+Date: Mon, 18 Feb 2019 19:31:37 -0500
+Subject: [PATCH 03/10] Minor bugfix and cleanup
+
+---
+ dlls/d3d11/dxvk.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/dlls/d3d11/dxvk.c b/dlls/d3d11/dxvk.c
+index 1f8653e02a7..a62469f967b 100644
+--- a/dlls/d3d11/dxvk.c
++++ b/dlls/d3d11/dxvk.c
+@@ -991,6 +991,9 @@ HRESULT create_d3d_device_dxvk(IDXGIAdapter *adapter, D3D_DRIVER_TYPE driver_typ
+             ERR("D3D11CreateDevice: No default adapter available\n");
+             return E_FAIL;
+         }
++    } else {
++        if (driver_type != D3D_DRIVER_TYPE_UNKNOWN || swrast != NULL)
++            return E_INVALIDARG;
+     }
+ 
+     native_info.pfn_vkGetInstanceProcAddr = vulkan_funcs->p_vkGetInstanceProcAddr;
+
+From 71ec1f34a5d7b4198d245b9877489db2d1416872 Mon Sep 17 00:00:00 2001
+From: Derek Lesho <dereklesho52@Gmail.com>
+Date: Mon, 18 Feb 2019 20:52:18 -0500
+Subject: [PATCH 04/10] Fix Fullscreen
+
+---
+ dlls/d3d11/dxvk.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/dlls/d3d11/dxvk.c b/dlls/d3d11/dxvk.c
+index a62469f967b..d73935e1687 100644
+--- a/dlls/d3d11/dxvk.c
++++ b/dlls/d3d11/dxvk.c
+@@ -933,15 +933,15 @@ static IDXGISwapChain1* dxvk_create_dxgi_swapchain(IDXGIVkSwapChain *presenter,
+     object->stats.SyncQPCTime.QuadPart = 0;
+     object->stats.SyncGPUTime.QuadPart = 0;
+     
+-    if (!object->desc_fs.Windowed && FAILED(dxvk_swapchain_EnterFullscreenMode(object, NULL)))
++    if (FAILED(IDXGIVkSwapChain_GetAdapter(object->presenter, &IID_IDXGIAdapter, (void**) &object->adapter)))
+     {
+-        ERR("DXGI: Failed to set initial fullscreen state");
++        ERR("DXGI: Failed to get adapter for present device");
+         goto failure;
+     }
+ 
+-    if (FAILED(IDXGIVkSwapChain_GetAdapter(object->presenter, &IID_IDXGIAdapter, (void**) &object->adapter)))
++    if (!object->desc_fs.Windowed && FAILED(dxvk_swapchain_EnterFullscreenMode(object, NULL)))
+     {
+-        ERR("DXGI: Failed to get adapter for present device");
++        ERR("DXGI: Failed to set initial fullscreen state");
+         goto failure;
+     }
+ 
+
+From 4861b8df513b7cb13ea897cd0034014bd9113fae Mon Sep 17 00:00:00 2001
+From: Derek Lesho <dereklesho52@Gmail.com>
+Date: Mon, 18 Feb 2019 21:18:19 -0500
+Subject: [PATCH 05/10] Fix compilation without DXVK
+
+---
+ dlls/d3d11/dxvk.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/dlls/d3d11/dxvk.c b/dlls/d3d11/dxvk.c
+index d73935e1687..f97717b7a14 100644
+--- a/dlls/d3d11/dxvk.c
++++ b/dlls/d3d11/dxvk.c
+@@ -1003,9 +1003,12 @@ HRESULT create_d3d_device_dxvk(IDXGIAdapter *adapter, D3D_DRIVER_TYPE driver_typ
+ }
+ 
+ #else
+-#error 2
+     int is_dxvk_supported(void)
+     {
+         return 0;
+     }
++
++    HRESULT create_d3d_device_dxvk(IDXGIAdapter *adapter, D3D_DRIVER_TYPE driver_type, HMODULE swrast, UINT flags,
++        const D3D_FEATURE_LEVEL *feature_levels, UINT levels, UINT sdk_version, ID3D11Device **device_out,
++        D3D_FEATURE_LEVEL *obtained_feature_level, ID3D11DeviceContext **immediate_context){return E_FAIL;}
+ #endif
+\ No newline at end of file
+
+From ab73712e22a503648b805c94b1cf9160fba54cb5 Mon Sep 17 00:00:00 2001
+From: Derek Lesho <dereklesho52@Gmail.com>
+Date: Tue, 19 Feb 2019 10:18:26 -0500
+Subject: [PATCH 06/10] Query window size if it is not provided in wine
+
+---
+ dlls/d3d11/dxvk.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/dlls/d3d11/dxvk.c b/dlls/d3d11/dxvk.c
+index f97717b7a14..bd00afc0a4a 100644
+--- a/dlls/d3d11/dxvk.c
++++ b/dlls/d3d11/dxvk.c
+@@ -932,6 +932,10 @@ static IDXGISwapChain1* dxvk_create_dxgi_swapchain(IDXGIVkSwapChain *presenter,
+     object->stats.SyncRefreshCount = 0;
+     object->stats.SyncQPCTime.QuadPart = 0;
+     object->stats.SyncGPUTime.QuadPart = 0;
++
++    GetWindowClientSize(hwnd, 
++        object->desc.Width ? NULL : &object->desc.Width,
++        object->desc.Height ? NULL : &object->desc.Height);
+     
+     if (FAILED(IDXGIVkSwapChain_GetAdapter(object->presenter, &IID_IDXGIAdapter, (void**) &object->adapter)))
+     {
+
+From e949d2ba2f7b318f0149ee93f507516edd5bea34 Mon Sep 17 00:00:00 2001
+From: Derek Lesho <dereklesho52@Gmail.com>
+Date: Tue, 19 Feb 2019 14:09:37 -0500
+Subject: [PATCH 07/10] Support Change of DXVK Entry-Point to
+ D3D11CoreCreateDevice
+
+---
+ dlls/d3d11/d3d11_main.c    | 65 ++++++++++++++++++--------------------
+ dlls/d3d11/d3d11_private.h |  5 ++-
+ dlls/d3d11/dxvk.c          | 44 ++++++--------------------
+ 3 files changed, 43 insertions(+), 71 deletions(-)
+
+diff --git a/dlls/d3d11/d3d11_main.c b/dlls/d3d11/d3d11_main.c
+index afec1efb2bf..9bf0df0f178 100644
+--- a/dlls/d3d11/d3d11_main.c
++++ b/dlls/d3d11/d3d11_main.c
+@@ -107,35 +107,6 @@ HRESULT WINAPI D3D11CoreRegisterLayers(void)
+     return S_OK;
+ }
+ 
+-HRESULT WINAPI D3D11CoreCreateDevice(IDXGIFactory *factory, IDXGIAdapter *adapter, UINT flags,
+-        const D3D_FEATURE_LEVEL *feature_levels, UINT levels, ID3D11Device **device)
+-{
+-    IUnknown *dxgi_device;
+-    HMODULE d3d11;
+-    HRESULT hr;
+-
+-    TRACE("factory %p, adapter %p, flags %#x, feature_levels %p, levels %u, device %p.\n",
+-            factory, adapter, flags, feature_levels, levels, device);
+-
+-    d3d11 = GetModuleHandleA("d3d11.dll");
+-    hr = DXGID3D10CreateDevice(d3d11, factory, adapter, flags, feature_levels, levels, (void **)&dxgi_device);
+-    if (FAILED(hr))
+-    {
+-        WARN("Failed to create device, returning %#x.\n", hr);
+-        return hr;
+-    }
+-
+-    hr = IUnknown_QueryInterface(dxgi_device, &IID_ID3D11Device, (void **)device);
+-    IUnknown_Release(dxgi_device);
+-    if (FAILED(hr))
+-    {
+-        ERR("Failed to query ID3D11Device interface, returning E_FAIL.\n");
+-        return E_FAIL;
+-    }
+-
+-    return S_OK;
+-}
+-
+ static int get_dxvk_enable_option(void)
+ {
+     HKEY defkey;
+@@ -182,17 +153,43 @@ static int get_dxvk_enable_option(void)
+     return result;
+ }
+ 
+-HRESULT WINAPI D3D11CreateDevice(IDXGIAdapter *adapter, D3D_DRIVER_TYPE driver_type, HMODULE swrast, UINT flags,
+-        const D3D_FEATURE_LEVEL *feature_levels, UINT levels, UINT sdk_version, ID3D11Device **device_out,
+-        D3D_FEATURE_LEVEL *obtained_feature_level, ID3D11DeviceContext **immediate_context)
++HRESULT WINAPI D3D11CoreCreateDevice(IDXGIFactory *factory, IDXGIAdapter *adapter, UINT flags,
++        const D3D_FEATURE_LEVEL *feature_levels, UINT levels, ID3D11Device **device)
+ {
++    IUnknown *dxgi_device;
++    HMODULE d3d11;
++    HRESULT hr;
+ 
++    
+     if(get_dxvk_enable_option() && is_dxvk_supported())
++        return create_d3d_device_dxvk(factory, adapter, flags, feature_levels, levels, device);
++
++    TRACE("factory %p, adapter %p, flags %#x, feature_levels %p, levels %u, device %p.\n",
++            factory, adapter, flags, feature_levels, levels, device);
++
++    d3d11 = GetModuleHandleA("d3d11.dll");
++    hr = DXGID3D10CreateDevice(d3d11, factory, adapter, flags, feature_levels, levels, (void **)&dxgi_device);
++    if (FAILED(hr))
++    {
++        WARN("Failed to create device, returning %#x.\n", hr);
++        return hr;
++    }
++
++    hr = IUnknown_QueryInterface(dxgi_device, &IID_ID3D11Device, (void **)device);
++    IUnknown_Release(dxgi_device);
++    if (FAILED(hr))
+     {
+-        return create_d3d_device_dxvk(adapter, driver_type, swrast, flags, feature_levels, levels, sdk_version, 
+-                                        device_out, obtained_feature_level, immediate_context);
++        ERR("Failed to query ID3D11Device interface, returning E_FAIL.\n");
++        return E_FAIL;
+     }
+ 
++    return S_OK;
++}
++
++HRESULT WINAPI D3D11CreateDevice(IDXGIAdapter *adapter, D3D_DRIVER_TYPE driver_type, HMODULE swrast, UINT flags,
++        const D3D_FEATURE_LEVEL *feature_levels, UINT levels, UINT sdk_version, ID3D11Device **device_out,
++        D3D_FEATURE_LEVEL *obtained_feature_level, ID3D11DeviceContext **immediate_context)
++{
+     static const D3D_FEATURE_LEVEL default_feature_levels[] =
+     {
+         D3D_FEATURE_LEVEL_11_0,
+diff --git a/dlls/d3d11/d3d11_private.h b/dlls/d3d11/d3d11_private.h
+index 35c23782ba6..f4bbe176edc 100644
+--- a/dlls/d3d11/d3d11_private.h
++++ b/dlls/d3d11/d3d11_private.h
+@@ -605,8 +605,7 @@ HRESULT WINAPI DXGID3D10RegisterLayers(const struct dxgi_device_layer *layers, U
+ 
+ int is_dxvk_supported(void);
+ 
+-HRESULT create_d3d_device_dxvk(IDXGIAdapter *adapter, D3D_DRIVER_TYPE driver_type, HMODULE swrast, UINT flags,
+-        const D3D_FEATURE_LEVEL *feature_levels, UINT levels, UINT sdk_version, ID3D11Device **device_out,
+-        D3D_FEATURE_LEVEL *obtained_feature_level, ID3D11DeviceContext **immediate_context);
++HRESULT create_d3d_device_dxvk(IDXGIFactory* factory, IDXGIAdapter *adapter, UINT flags,
++        const D3D_FEATURE_LEVEL *feature_levels, UINT levels, ID3D11Device **device_out);
+ 
+ #endif /* __WINE_D3D11_PRIVATE_H */
+diff --git a/dlls/d3d11/dxvk.c b/dlls/d3d11/dxvk.c
+index bd00afc0a4a..55e167cc199 100644
+--- a/dlls/d3d11/dxvk.c
++++ b/dlls/d3d11/dxvk.c
+@@ -901,6 +901,7 @@ static IDXGISwapChain1* dxvk_create_dxgi_swapchain(IDXGIVkSwapChain *presenter,
+                         const DXGI_SWAP_CHAIN_DESC1 *pDesc, 
+                         const DXGI_SWAP_CHAIN_FULLSCREEN_DESC *pFullscreenDesc)
+ {
++    RECT window_rect;
+     struct dxvk_swapchain *object = heap_alloc_zero(sizeof(struct dxvk_swapchain));
+     if (!object)
+         return NULL;
+@@ -933,9 +934,11 @@ static IDXGISwapChain1* dxvk_create_dxgi_swapchain(IDXGIVkSwapChain *presenter,
+     object->stats.SyncQPCTime.QuadPart = 0;
+     object->stats.SyncGPUTime.QuadPart = 0;
+ 
+-    GetWindowClientSize(hwnd, 
+-        object->desc.Width ? NULL : &object->desc.Width,
+-        object->desc.Height ? NULL : &object->desc.Height);
++    GetClientRect(hwnd, &window_rect);
++    if (!object->desc.Width)
++        object->desc.Width = window_rect.right - window_rect.left;
++    if (!object->desc.Height)
++        object->desc.Height = window_rect.bottom - window_rect.top;
+     
+     if (FAILED(IDXGIVkSwapChain_GetAdapter(object->presenter, &IID_IDXGIAdapter, (void**) &object->adapter)))
+     {
+@@ -970,40 +973,13 @@ static dxvk_native_info native_info =
+     dxvk_create_dxgi_swapchain
+ };
+ 
+-HRESULT create_d3d_device_dxvk(IDXGIAdapter *adapter, D3D_DRIVER_TYPE driver_type, HMODULE swrast, UINT flags,
+-        const D3D_FEATURE_LEVEL *feature_levels, UINT levels, UINT sdk_version, ID3D11Device **device_out,
+-        D3D_FEATURE_LEVEL *obtained_feature_level, ID3D11DeviceContext **immediate_context)
++HRESULT create_d3d_device_dxvk(IDXGIFactory *factory, IDXGIAdapter *adapter, UINT flags,
++        const D3D_FEATURE_LEVEL *feature_levels, UINT levels, ID3D11Device **device_out)
+ {
+-    if (!adapter)
+-    {
+-        IDXGIFactory *new_factory;
+-
+-        /* We'll treat everything as hardware, even if the
+-           Vulkan device is actually a software device. */
+-        if (driver_type != D3D_DRIVER_TYPE_HARDWARE)
+-            WARN("D3D11CreateDevice: Unsupported driver type\n");
+-
+-        /* We'll use the first adapter returned by a DXGI factory */
+-        if (FAILED(CreateDXGIFactory1(&IID_IDXGIFactory, (void**)&new_factory)))
+-        {
+-            ERR("D3D11CreateDevice: Failed to create a DXGI factory\n");
+-            return E_FAIL;
+-        }
+-
+-        if (FAILED(IDXGIFactory_EnumAdapters(new_factory, 0, &adapter)))
+-        {
+-            ERR("D3D11CreateDevice: No default adapter available\n");
+-            return E_FAIL;
+-        }
+-    } else {
+-        if (driver_type != D3D_DRIVER_TYPE_UNKNOWN || swrast != NULL)
+-            return E_INVALIDARG;
+-    }
+-
+     native_info.pfn_vkGetInstanceProcAddr = vulkan_funcs->p_vkGetInstanceProcAddr;
+ 
+-    return pfn_dxvk_native_create_d3d11_device(native_info, adapter, driver_type, swrast, flags, feature_levels,
+-            levels, sdk_version, device_out, obtained_feature_level, immediate_context);
++    return pfn_dxvk_native_create_d3d11_device(native_info, factory, adapter, flags, feature_levels,
++            levels, device_out);
+ }
+ 
+ #else
+
+From 39eaa474e738da58ac6f3d5287767b2678b170a5 Mon Sep 17 00:00:00 2001
+From: Derek Lesho <dereklesho52@Gmail.com>
+Date: Wed, 20 Feb 2019 00:11:42 -0500
+Subject: [PATCH 08/10] Minor Formatting Fixes
+
+---
+ dlls/d3d11/d3d11_main.c | 3 +--
+ dlls/d3d11/dxvk.c       | 4 ++--
+ 2 files changed, 3 insertions(+), 4 deletions(-)
+
+diff --git a/dlls/d3d11/d3d11_main.c b/dlls/d3d11/d3d11_main.c
+index 9bf0df0f178..42e0dbb8366 100644
+--- a/dlls/d3d11/d3d11_main.c
++++ b/dlls/d3d11/d3d11_main.c
+@@ -160,8 +160,7 @@ HRESULT WINAPI D3D11CoreCreateDevice(IDXGIFactory *factory, IDXGIAdapter *adapte
+     HMODULE d3d11;
+     HRESULT hr;
+ 
+-    
+-    if(get_dxvk_enable_option() && is_dxvk_supported())
++    if (get_dxvk_enable_option() && is_dxvk_supported())
+         return create_d3d_device_dxvk(factory, adapter, flags, feature_levels, levels, device);
+ 
+     TRACE("factory %p, adapter %p, flags %#x, feature_levels %p, levels %u, device %p.\n",
+diff --git a/dlls/d3d11/dxvk.c b/dlls/d3d11/dxvk.c
+index 55e167cc199..5a8a65afe2e 100644
+--- a/dlls/d3d11/dxvk.c
++++ b/dlls/d3d11/dxvk.c
+@@ -27,7 +27,7 @@ int is_dxvk_supported(void)
+ {
+     if ( !(dxvk_lib = wine_dlopen(SONAME_LIBDXVK, RTLD_LAZY | RTLD_NOLOAD, NULL, 0)) )
+     {
+-        if( !(dxvk_lib = wine_dlopen(SONAME_LIBDXVK, RTLD_LAZY | RTLD_LOCAL, NULL, 0)) )
++        if ( !(dxvk_lib = wine_dlopen(SONAME_LIBDXVK, RTLD_LAZY | RTLD_LOCAL, NULL, 0)) )
+         {
+             ERR("DXVK could not be found at %s\n", SONAME_LIBDXVK);
+             return 0;
+@@ -805,7 +805,7 @@ static HRESULT STDMETHODCALLTYPE dxvk_swapchain_Present1(IDXGISwapChain1 *iface,
+     *
+     *  "1 through 4 - Synchronize presentation after the nth vertical blank."
+     *  https://msdn.microsoft.com/en-us/library/windows/desktop/bb174576(v=vs.85).aspx */
+-    if(sync_interval > 4)
++    if (sync_interval > 4)
+         sync_interval = 4;
+ 
+     // TODO: we can't catch the exception from C code AFAIK
+
+From 81ae786f468bc3ff0c1f9f57e51ffa21797ee659 Mon Sep 17 00:00:00 2001
+From: Derek Lesho <dereklesho52@Gmail.com>
+Date: Wed, 20 Feb 2019 17:25:53 -0500
+Subject: [PATCH 09/10] Code Clean-Up
+
+---
+ dlls/d3d11/dxvk.c | 83 +++++++++++++++++++++++++----------------------
+ 1 file changed, 44 insertions(+), 39 deletions(-)
+
+diff --git a/dlls/d3d11/dxvk.c b/dlls/d3d11/dxvk.c
+index 5a8a65afe2e..54d477ba132 100644
+--- a/dlls/d3d11/dxvk.c
++++ b/dlls/d3d11/dxvk.c
+@@ -3,23 +3,21 @@
+ 
+ #include "d3d11_private.h"
+ 
+-#include "wine/vulkan.h"
+-#include "wine/vulkan_driver.h"
++WINE_DEFAULT_DEBUG_CHANNEL(d3d11);
+ 
+ #ifdef SONAME_LIBDXVK
+-    #define DXVK_NO_WINDOWS_H
+-    #define DXVK_NO_VULKAN_H
+-    #define DXVK_NO_INTERFACE_H
+-    #include <dxvk.h>
+-    #include "wine/library.h"
+-#endif
+ 
+-WINE_DEFAULT_DEBUG_CHANNEL(d3d11);
++#define DXVK_NO_WINDOWS_H
++#define DXVK_NO_VULKAN_H
++#define DXVK_NO_INTERFACE_H
++#include "wine/library.h"
++#include "wine/vulkan.h"
++#include "wine/vulkan_driver.h"
++#include <dxvk.h>
+ 
+-#ifdef SONAME_LIBDXVK
+ static void* dxvk_lib;
+ 
+-static struct vulkan_funcs *vulkan_funcs;
++static const struct vulkan_funcs *vulkan_funcs;
+ 
+ static PFN_dxvk_native_create_d3d11_device pfn_dxvk_native_create_d3d11_device;
+ 
+@@ -32,10 +30,10 @@ int is_dxvk_supported(void)
+             ERR("DXVK could not be found at %s\n", SONAME_LIBDXVK);
+             return 0;
+         } else {
+-            pfn_dxvk_native_create_d3d11_device = wine_dlsym(dxvk_lib, "dxvk_native_create_d3d11_device", NULL, 0);
+-            
+             HDC hdc;
+ 
++            pfn_dxvk_native_create_d3d11_device = wine_dlsym(dxvk_lib, "dxvk_native_create_d3d11_device", NULL, 0);
++
+             hdc = GetDC(0);
+             vulkan_funcs = __wine_get_vulkan_driver(hdc, WINE_VULKAN_DRIVER_VERSION);
+             ReleaseDC(0, hdc);
+@@ -110,8 +108,6 @@ static VkResult dxvk_create_vulkan_surface(VkInstance instance, void *window, Vk
+     info.hinstance  = window_instance;
+     info.hwnd       = window;
+ 
+-    VkResult (*pfn_vkCreateWin32SurfaceKHR)(VkInstance, const VkWin32SurfaceCreateInfoKHR *, const VkAllocationCallbacks *, VkSurfaceKHR *);
+-
+     return vulkan_funcs->p_vkCreateWin32SurfaceKHR(instance, &info, NULL, surface);
+ }
+ 
+@@ -138,6 +134,7 @@ static int get_monitor_format_bpp(DXGI_FORMAT format) {
+ static HRESULT get_monitor_display_mode(HMONITOR monitor, DWORD mode_num, DXGI_MODE_DESC *mode)
+ {
+     MONITORINFOEXW mon_info;
++    DEVMODEW dev_mode = { };
+     mon_info.cbSize = sizeof(mon_info);
+ 
+     if (!GetMonitorInfoW(monitor, (MONITORINFO*) &mon_info))
+@@ -146,7 +143,6 @@ static HRESULT get_monitor_display_mode(HMONITOR monitor, DWORD mode_num, DXGI_M
+         return E_FAIL;
+     }
+     
+-    DEVMODEW dev_mode = { };
+     dev_mode.dmSize = sizeof(dev_mode);
+     
+     if (!EnumDisplaySettingsW(mon_info.szDevice, mode_num, &dev_mode))
+@@ -165,6 +161,8 @@ static HRESULT get_monitor_display_mode(HMONITOR monitor, DWORD mode_num, DXGI_M
+ static HRESULT set_monitor_display_mode(HMONITOR monitor, const DXGI_MODE_DESC *mode)
+ {
+     MONITORINFOEXW mon_info;
++    DEVMODEW dev_mode = { };
++    LONG status;
+     mon_info.cbSize = sizeof(mon_info);
+ 
+     if (!GetMonitorInfoW(monitor, (MONITORINFO*) &mon_info)) {
+@@ -172,7 +170,6 @@ static HRESULT set_monitor_display_mode(HMONITOR monitor, const DXGI_MODE_DESC *
+         return E_FAIL;
+     }
+     
+-    DEVMODEW dev_mode = { };
+     dev_mode.dmSize       = sizeof(dev_mode);
+     dev_mode.dmFields     = DM_PELSWIDTH | DM_PELSHEIGHT | DM_BITSPERPEL;
+     dev_mode.dmPelsWidth  = mode->Width;
+@@ -188,7 +185,7 @@ static HRESULT set_monitor_display_mode(HMONITOR monitor, const DXGI_MODE_DESC *
+     TRACE("DXGI: Setting display mode: %ux%u@%u\n",
+         dev_mode.dmPelsWidth, dev_mode.dmPelsHeight, dev_mode.dmDisplayFrequency);
+     
+-    LONG status = ChangeDisplaySettingsExW(
++    status = ChangeDisplaySettingsExW(
+         mon_info.szDevice, &dev_mode, NULL, CDS_FULLSCREEN, NULL);
+     
+     return status == DISP_CHANGE_SUCCESSFUL ? S_OK : DXGI_ERROR_NOT_CURRENTLY_AVAILABLE;
+@@ -270,6 +267,11 @@ static HRESULT dxvk_swapchain_RestoreDisplayMode(struct dxvk_swapchain *swapchai
+ 
+ static HRESULT dxvk_swapchain_EnterFullscreenMode(struct dxvk_swapchain *swapchain, IDXGIOutput *target)
+ {
++    LONG style;
++    LONG exstyle;
++    DXGI_OUTPUT_DESC desc;
++    RECT rect;
++
+     if (!IsWindow(swapchain->window))
+         return DXGI_ERROR_NOT_CURRENTLY_AVAILABLE;
+ 
+@@ -305,8 +307,8 @@ static HRESULT dxvk_swapchain_EnterFullscreenMode(struct dxvk_swapchain *swapcha
+     swapchain->desc_fs.Windowed = FALSE;
+ 
+     /* Change the window flags to remove the decoration etc. */
+-    LONG style   = GetWindowLongW(swapchain->window, GWL_STYLE);
+-    LONG exstyle = GetWindowLongW(swapchain->window, GWL_EXSTYLE);
++    style   = GetWindowLongW(swapchain->window, GWL_STYLE);
++    exstyle = GetWindowLongW(swapchain->window, GWL_EXSTYLE);
+ 
+     swapchain->window_style = style;
+     swapchain->window_exstyle = exstyle;
+@@ -318,10 +320,8 @@ static HRESULT dxvk_swapchain_EnterFullscreenMode(struct dxvk_swapchain *swapcha
+     SetWindowLongW(swapchain->window, GWL_EXSTYLE, exstyle);
+ 
+     /* Move the window so that it covers the entire output */
+-    DXGI_OUTPUT_DESC desc;
+     IDXGIOutput_GetDesc(target, &desc);
+-
+-    const RECT rect = desc.DesktopCoordinates;
++    rect = desc.DesktopCoordinates;
+ 
+     SetWindowPos(swapchain->window, HWND_TOPMOST,
+       rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top,
+@@ -336,6 +336,10 @@ static HRESULT dxvk_swapchain_EnterFullscreenMode(struct dxvk_swapchain *swapcha
+ 
+ static HRESULT dxvk_swapchain_LeaveFullScreenMode(struct dxvk_swapchain *swapchain)
+ {
++    LONG cur_style;
++    LONG cur_exstyle;
++    RECT rect;
++
+     if (!IsWindow(swapchain->window))
+         return DXGI_ERROR_NOT_CURRENTLY_AVAILABLE;
+ 
+@@ -350,8 +354,8 @@ static HRESULT dxvk_swapchain_LeaveFullScreenMode(struct dxvk_swapchain *swapcha
+ 
+     /* Only restore the window style if the application hasn't
+        changed them. This is in line with what native DXGI does.*/
+-    LONG cur_style = GetWindowLongW(swapchain->window, GWL_STYLE) & ~WS_VISIBLE;
+-    LONG cur_exstyle = GetWindowLongW(swapchain->window, GWL_EXSTYLE) & ~WS_EX_TOPMOST;
++    cur_style = GetWindowLongW(swapchain->window, GWL_STYLE) & ~WS_VISIBLE;
++    cur_exstyle = GetWindowLongW(swapchain->window, GWL_EXSTYLE) & ~WS_EX_TOPMOST;
+ 
+     if (cur_style == (swapchain->window_style & ~(WS_VISIBLE | WS_OVERLAPPEDWINDOW))
+      && cur_exstyle == (swapchain->window_exstyle & ~(WS_EX_TOPMOST | WS_EX_OVERLAPPEDWINDOW)))
+@@ -361,7 +365,7 @@ static HRESULT dxvk_swapchain_LeaveFullScreenMode(struct dxvk_swapchain *swapcha
+     }
+ 
+     /* Restore window position and apply the style */
+-    const RECT rect = swapchain->window_rect;
++    rect = swapchain->window_rect;
+     
+     SetWindowPos(swapchain->window, 0,
+       rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top,
+@@ -666,6 +670,8 @@ static HRESULT STDMETHODCALLTYPE dxvk_swapchain_ResizeTarget(IDXGISwapChain1 *if
+             new_rect.right - new_rect.left, new_rect.bottom - new_rect.top, TRUE);
+     } else {
+         IDXGIOutput *output;
++        DXGI_OUTPUT_DESC desc;
++        RECT new_rect;
+       
+         if (FAILED(dxvk_swapchain_GetOutputFromMonitor(swapchain, swapchain->monitor, &output)))
+         {
+@@ -678,10 +684,8 @@ static HRESULT STDMETHODCALLTYPE dxvk_swapchain_ResizeTarget(IDXGISwapChain1 *if
+             dxvk_swapchain_ChangeDisplayMode(swapchain, output, target_mode_desc);
+ 
+         /* Resize and reposition the window to */
+-        DXGI_OUTPUT_DESC desc;
+         IDXGIOutput_GetDesc(output, &desc);
+-
+-        RECT new_rect = desc.DesktopCoordinates;
++        new_rect = desc.DesktopCoordinates;
+       
+         MoveWindow(swapchain->window, new_rect.left, new_rect.top,
+             new_rect.right - new_rect.left, new_rect.bottom - new_rect.top, TRUE);
+@@ -698,6 +702,9 @@ static HRESULT STDMETHODCALLTYPE dxvk_swapchain_ResizeTarget(IDXGISwapChain1 *if
+ static HRESULT STDMETHODCALLTYPE dxvk_swapchain_GetContainingOutput(IDXGISwapChain1 *iface, IDXGIOutput **output)
+ {
+     struct dxvk_swapchain *swapchain = dxvk_swapchain_from_IDXGISwapChain1(iface);
++    RECT window_rect = { 0, 0, 0, 0 };
++    POINT monitor_point;
++    HMONITOR monitor;
+ 
+     if (output)
+         *output = NULL;
+@@ -705,13 +712,12 @@ static HRESULT STDMETHODCALLTYPE dxvk_swapchain_GetContainingOutput(IDXGISwapCha
+     if (!IsWindow(swapchain->window))
+       return DXGI_ERROR_INVALID_CALL;
+     
+-    RECT window_rect = { 0, 0, 0, 0 };
+     GetWindowRect(swapchain->window, &window_rect);
+     
+-    POINT monitor_point = { (window_rect.left + window_rect.right) / 2,
+-        (window_rect.top + window_rect.bottom) / 2 };
++    monitor_point.x = (window_rect.left + window_rect.right) / 2;
++    monitor_point.y = (window_rect.top + window_rect.bottom) / 2;
+ 
+-    HMONITOR monitor = MonitorFromPoint(monitor_point, MONITOR_DEFAULTTOPRIMARY);
++    monitor = MonitorFromPoint(monitor_point, MONITOR_DEFAULTTOPRIMARY);
+     
+     return dxvk_swapchain_GetOutputFromMonitor(swapchain, monitor, output);
+ }
+@@ -789,6 +795,7 @@ static HRESULT STDMETHODCALLTYPE dxvk_swapchain_Present1(IDXGISwapChain1 *iface,
+         UINT sync_interval, UINT flags, const DXGI_PRESENT_PARAMETERS *present_parameters)
+ {
+     struct dxvk_swapchain *swapchain = dxvk_swapchain_from_IDXGISwapChain1(iface);
++    HANDLE wait_handles[2] = {swapchain->window_mutex, swapchain->buffer_mutex};
+     HRESULT hr;
+ 
+     if (!IsWindow(swapchain->window))
+@@ -797,8 +804,6 @@ static HRESULT STDMETHODCALLTYPE dxvk_swapchain_Present1(IDXGISwapChain1 *iface,
+     if (flags & DXGI_PRESENT_TEST)
+         return S_OK;
+ 
+-    HANDLE wait_handles[2] = {swapchain->window_mutex, swapchain->buffer_mutex};
+-
+     WaitForMultipleObjects(2, wait_handles, TRUE, INFINITE);
+ 
+     /* Higher values are not allowed according to the Microsoft documentation:
+@@ -901,7 +906,8 @@ static IDXGISwapChain1* dxvk_create_dxgi_swapchain(IDXGIVkSwapChain *presenter,
+                         const DXGI_SWAP_CHAIN_DESC1 *pDesc, 
+                         const DXGI_SWAP_CHAIN_FULLSCREEN_DESC *pFullscreenDesc)
+ {
+-    RECT window_rect;
++    RECT window_rect = { 0, 0, 0, 0 };
++
+     struct dxvk_swapchain *object = heap_alloc_zero(sizeof(struct dxvk_swapchain));
+     if (!object)
+         return NULL;
+@@ -911,8 +917,7 @@ static IDXGISwapChain1* dxvk_create_dxgi_swapchain(IDXGIVkSwapChain *presenter,
+ 
+     object->window_style = 0;
+     object->window_exstyle = 0;
+-    RECT default_window_rect = { 0, 0, 0, 0 };
+-    object->window_rect = default_window_rect;
++    object->window_rect = window_rect;
+ 
+     wined3d_private_store_init(&object->private_store);
+ 
+@@ -976,7 +981,7 @@ static dxvk_native_info native_info =
+ HRESULT create_d3d_device_dxvk(IDXGIFactory *factory, IDXGIAdapter *adapter, UINT flags,
+         const D3D_FEATURE_LEVEL *feature_levels, UINT levels, ID3D11Device **device_out)
+ {
+-    native_info.pfn_vkGetInstanceProcAddr = vulkan_funcs->p_vkGetInstanceProcAddr;
++    native_info.pfn_vkGetInstanceProcAddr = (PFN_vkGetInstanceProcAddr) vulkan_funcs->p_vkGetInstanceProcAddr;
+ 
+     return pfn_dxvk_native_create_d3d11_device(native_info, factory, adapter, flags, feature_levels,
+             levels, device_out);
+
+From d45c7480cde332b1327d89b2f388a476cc803a1b Mon Sep 17 00:00:00 2001
+From: Derek Lesho <dereklesho52@Gmail.com>
+Date: Thu, 21 Feb 2019 00:36:39 -0500
+Subject: [PATCH 10/10] Fix build w/o DXVK
+
+---
+ dlls/d3d11/dxvk.c | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/dlls/d3d11/dxvk.c b/dlls/d3d11/dxvk.c
+index 54d477ba132..cc6b8072dfb 100644
+--- a/dlls/d3d11/dxvk.c
++++ b/dlls/d3d11/dxvk.c
+@@ -993,7 +993,6 @@ HRESULT create_d3d_device_dxvk(IDXGIFactory *factory, IDXGIAdapter *adapter, UIN
+         return 0;
+     }
+ 
+-    HRESULT create_d3d_device_dxvk(IDXGIAdapter *adapter, D3D_DRIVER_TYPE driver_type, HMODULE swrast, UINT flags,
+-        const D3D_FEATURE_LEVEL *feature_levels, UINT levels, UINT sdk_version, ID3D11Device **device_out,
+-        D3D_FEATURE_LEVEL *obtained_feature_level, ID3D11DeviceContext **immediate_context){return E_FAIL;}
++    HRESULT create_d3d_device_dxvk(IDXGIFactory *factory, IDXGIAdapter *adapter, UINT flags,
++        const D3D_FEATURE_LEVEL *feature_levels, UINT levels, ID3D11Device **device_out){return E_FAIL;}
+ #endif
+\ No newline at end of file

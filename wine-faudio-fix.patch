@@ -1,0 +1,37 @@
+From 29a158b444fb26a85fc09776ea83cc1840b83931 Mon Sep 17 00:00:00 2001
+From: Andrew Eikum <aeikum@codeweavers.com>
+Date: Tue, 27 Nov 2018 12:04:24 -0600
+Subject: [PATCH] xaudio2: Wait for engine thread to be ready
+
+---
+ dlls/xaudio2_7/xaudio_dll.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/dlls/xaudio2_7/xaudio_dll.c b/dlls/xaudio2_7/xaudio_dll.c
+index 2e8fbb542df..b8fb03c477f 100644
+--- a/dlls/xaudio2_7/xaudio_dll.c
++++ b/dlls/xaudio2_7/xaudio_dll.c
+@@ -1708,6 +1708,8 @@ static DWORD WINAPI engine_thread(void *user)
+ 
+     pthread_mutex_lock(&This->engine_lock);
+ 
++    pthread_cond_broadcast(&This->engine_done);
++
+     do{
+         pthread_cond_wait(&This->engine_ready, &This->engine_lock);
+ 
+@@ -1759,8 +1761,14 @@ static HRESULT WINAPI IXAudio2Impl_CreateMasteringVoice(IXAudio2 *iface,
+ 
+     This->mst.effect_chain = wrap_effect_chain(pEffectChain);
+ 
++    pthread_mutex_lock(&This->mst.engine_lock);
++
+     This->mst.engine_thread = CreateThread(NULL, 0, &engine_thread, &This->mst, 0, NULL);
+ 
++    pthread_cond_wait(&This->mst.engine_done, &This->mst.engine_lock);
++
++    pthread_mutex_unlock(&This->mst.engine_lock);
++
+     FAudio_SetEngineProcedureEXT(This->faudio, &engine_cb, &This->mst);
+ 
+     FAudio_CreateMasteringVoice(This->faudio, &This->mst.faudio_voice, inputChannels,
